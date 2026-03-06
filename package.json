@@ -1,0 +1,17 @@
+{
+  "name": "artisan-marketplace",
+  "private": true,
+  "workspaces": [
+    "admin",
+    "web"
+  ],
+  "scripts": {
+    "dev:admin": "pnpm --filter admin dev",
+    "dev:web": "pnpm --filter web dev",
+    "build:admin": "pnpm --filter admin build",
+    "build:web": "pnpm --filter web build",
+    "db:reset": "cd supabase && supabase db reset",
+    "db:migrate": "cd supabase && supabase migration up",
+    "db:types": "supabase gen types typescript --project-id $SUPABASE_PROJECT_ID > admin/src/types/database.types.ts"
+  }
+}

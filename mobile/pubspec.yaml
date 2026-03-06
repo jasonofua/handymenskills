@@ -1,0 +1,72 @@
+name: artisan_marketplace
+description: "Artisan Marketplace - Connect with skilled workers in Nigeria"
+publish_to: 'none'
+version: 1.0.0+1
+
+environment:
+  sdk: ^3.9.2
+
+dependencies:
+  flutter:
+    sdk: flutter
+
+  # Supabase
+  supabase_flutter: ^2.8.0
+
+  # State Management
+  get: ^4.6.6
+
+  # Navigation
+  go_router: ^14.0.0
+
+  # Firebase
+  firebase_core: ^3.0.0
+  firebase_messaging: ^15.0.0
+
+  # Payments
+  flutter_paystack_plus: ^2.0.0
+
+  # Maps & Location
+  google_maps_flutter: ^2.0.0
+  geolocator: ^12.0.0
+  geocoding: ^3.0.0
+
+  # UI
+  flutter_screenutil: ^5.9.0
+  shimmer: ^3.0.0
+  cached_network_image: ^3.3.0
+  flutter_rating_bar: ^4.0.0
+  smooth_page_indicator: ^1.1.0
+  pin_code_fields: ^8.0.0
+  fl_chart: ^0.70.0
+  cupertino_icons: ^1.0.8
+  flutter_svg: ^2.0.0
+
+  # Storage
+  shared_preferences: ^2.2.0
+
+  # Utilities
+  image_picker: ^1.0.0
+  flutter_local_notifications: ^17.0.0
+  intl: ^0.19.0
+  url_launcher: ^6.0.0
+  permission_handler: ^11.0.0
+  connectivity_plus: ^6.0.0
+  json_annotation: ^4.9.0
+  freezed_annotation: ^2.4.0
+  timeago: ^3.7.0
+
+dev_dependencies:
+  flutter_test:
+    sdk: flutter
+  flutter_lints: ^5.0.0
+  build_runner: ^2.4.0
+  json_serializable: ^6.8.0
+  freezed: ^2.5.0
+
+flutter:
+  uses-material-design: true
+
+  assets:
+    - assets/images/
+    - assets/icons/
