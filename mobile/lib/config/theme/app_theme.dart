@@ -28,7 +28,7 @@ class AppTheme {
           centerTitle: true,
           systemOverlayStyle: SystemUiOverlayStyle.dark,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: AppColors.card,
           elevation: AppDimensions.cardElevation,
           shape: RoundedRectangleBorder(
@@ -137,7 +137,7 @@ class AppTheme {
           centerTitle: true,
           systemOverlayStyle: SystemUiOverlayStyle.light,
         ),
-        cardTheme: CardTheme(
+        cardTheme: CardThemeData(
           color: AppColors.darkCard,
           elevation: AppDimensions.cardElevation,
           shape: RoundedRectangleBorder(

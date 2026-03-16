@@ -62,6 +62,38 @@ class WorkerRepository {
     }
   }
 
+  /// Searches for workers by state and LGA.
+  /// Optionally filters by [skillId], [categoryId], and [minRating].
+  Future<List<Map<String, dynamic>>> searchWorkersByLocation({
+    String? state,
+    String? lga,
+    String? skillId,
+    String? categoryId,
+    double? minRating,
+    int limit = 20,
+    int offset = 0,
+  }) async {
+    try {
+      final params = <String, dynamic>{
+        'p_limit': limit,
+        'p_offset': offset,
+      };
+      if (state != null) params['p_state'] = state;
+      if (lga != null) params['p_lga'] = lga;
+      if (skillId != null) params['p_skill_id'] = skillId;
+      if (categoryId != null) params['p_category_id'] = categoryId;
+      if (minRating != null) params['p_min_rating'] = minRating;
+
+      final response = await supabase.rpc(
+        'search_workers_by_location',
+        params: params,
+      );
+      return List<Map<String, dynamic>>.from(response as List);
+    } catch (e) {
+      throw Exception('Failed to search workers by location: $e');
+    }
+  }
+
   /// Toggles the availability status for a worker.
   Future<void> toggleAvailability(String userId, bool isAvailable) async {
     try {
@@ -167,7 +199,8 @@ class WorkerRepository {
     try {
       await supabase
           .from('worker_profiles')
-          .update({'bank_details': bankData}).eq('user_id', userId);
+          .update(bankData)
+          .eq('user_id', userId);
     } catch (e) {
       throw Exception('Failed to update bank details for $userId: $e');
     }

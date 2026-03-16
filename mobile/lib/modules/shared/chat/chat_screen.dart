@@ -1,17 +1,26 @@
 import 'dart:async';
+import 'dart:io';
 
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 import 'package:intl/intl.dart';
+import 'package:image_picker/image_picker.dart';
+import 'package:file_picker/file_picker.dart';
+import 'package:url_launcher/url_launcher.dart';
+import 'package:geolocator/geolocator.dart';
+import 'package:geocoding/geocoding.dart';
+import 'package:cached_network_image/cached_network_image.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../controllers/auth_controller.dart';
 import '../../../controllers/chat_controller.dart';
+import '../../../data/repositories/storage_repository.dart';
 import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_loading.dart';
+import '../../../widgets/common/app_snackbar.dart';
 
 class ChatScreen extends StatefulWidget {
   final String conversationId;
@@ -39,7 +48,9 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   void initState() {
     super.initState();
-    _chatController.openConversation(widget.conversationId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _chatController.openConversation(widget.conversationId);
+    });
 
     // Auto-scroll when new messages arrive
     ever(_chatController.messages, (_) {
@@ -104,6 +115,7 @@ class _ChatScreenState extends State<ChatScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: _buildAppBar(),
       body: Column(
         children: [
@@ -117,10 +129,13 @@ class _ChatScreenState extends State<ChatScreen> {
 
   PreferredSizeWidget _buildAppBar() {
     return AppBar(
+      backgroundColor: AppColors.white,
+      elevation: 0,
       leading: IconButton(
         icon: const Icon(Icons.arrow_back),
         onPressed: () => context.pop(),
       ),
+      titleSpacing: 0,
       title: Obx(() {
         final conversations = _chatController.conversations;
         final conversation = conversations.firstWhereOrNull(
@@ -130,15 +145,18 @@ class _ChatScreenState extends State<ChatScreen> {
             conversation?['other_user'] as Map<String, dynamic>? ?? {};
         final String name = otherUser['full_name'] ?? 'Chat';
         final String? avatarUrl = otherUser['avatar_url'];
+        final bool isOnline = otherUser['is_online'] == true;
 
         return Row(
           children: [
             AppAvatar(
               imageUrl: avatarUrl,
               name: name,
-              size: AppDimensions.avatarSm,
+              size: AppDimensions.avatarSm + 4,
+              showOnlineBadge: true,
+              isOnline: isOnline,
             ),
-            const SizedBox(width: AppDimensions.sm),
+            const SizedBox(width: AppDimensions.sm + 2),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
@@ -149,12 +167,13 @@ class _ChatScreenState extends State<ChatScreen> {
                     maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
-                  if (otherUser['is_online'] == true)
+                  if (isOnline)
                     Text(
                       'Online',
                       style: AppTextStyles.caption.copyWith(
                         color: AppColors.success,
                         fontSize: 11,
+                        fontWeight: FontWeight.w500,
                       ),
                     ),
                 ],
@@ -163,6 +182,44 @@ class _ChatScreenState extends State<ChatScreen> {
           ],
         );
       }),
+      actions: [
+        IconButton(
+          icon: Container(
+            width: 36,
+            height: 36,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: const Icon(
+              Icons.phone_outlined,
+              size: 18,
+              color: AppColors.primary,
+            ),
+          ),
+          onPressed: () {
+            final conversations = _chatController.conversations;
+            final conversation = conversations.firstWhereOrNull(
+              (c) => c['id'] == widget.conversationId,
+            );
+            final otherUser = conversation?['other_user'] as Map<String, dynamic>? ?? {};
+            final phone = otherUser['phone']?.toString();
+            if (phone != null && phone.isNotEmpty) {
+              launchUrl(Uri.parse('tel:$phone'));
+            } else {
+              AppSnackbar.info('Phone number not available');
+            }
+          },
+        ),
+        const SizedBox(width: 4),
+      ],
+      bottom: PreferredSize(
+        preferredSize: const Size.fromHeight(1),
+        child: Container(
+          height: 1,
+          color: AppColors.border.withValues(alpha: 0.5),
+        ),
+      ),
     );
   }
 
@@ -180,16 +237,25 @@ class _ChatScreenState extends State<ChatScreen> {
             child: Column(
               mainAxisAlignment: MainAxisAlignment.center,
               children: [
-                Icon(
-                  Icons.chat_bubble_outline,
-                  size: 64,
-                  color: AppColors.textHint.withValues(alpha: 0.5),
+                Container(
+                  width: 80,
+                  height: 80,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.08),
+                    shape: BoxShape.circle,
+                  ),
+                  child: Icon(
+                    Icons.chat_bubble_outline,
+                    size: 36,
+                    color: AppColors.primary.withValues(alpha: 0.5),
+                  ),
                 ),
                 const SizedBox(height: AppDimensions.md),
                 Text(
                   'No messages yet',
                   style: AppTextStyles.bodyMedium.copyWith(
-                    color: AppColors.textHint,
+                    color: AppColors.textSecondary,
+                    fontWeight: FontWeight.w500,
                   ),
                 ),
                 const SizedBox(height: AppDimensions.xs),
@@ -256,13 +322,13 @@ class _ChatScreenState extends State<ChatScreen> {
     if (date.year == now.year &&
         date.month == now.month &&
         date.day == now.day) {
-      label = 'Today';
+      label = 'TODAY';
     } else if (date.year == now.year &&
         date.month == now.month &&
         date.day == now.day - 1) {
-      label = 'Yesterday';
+      label = 'YESTERDAY';
     } else {
-      label = DateFormat('MMMM d, yyyy').format(date);
+      label = DateFormat('MMMM d, yyyy').format(date).toUpperCase();
     }
 
     return Padding(
@@ -271,15 +337,21 @@ class _ChatScreenState extends State<ChatScreen> {
         child: Container(
           padding: const EdgeInsets.symmetric(
             horizontal: AppDimensions.md,
-            vertical: AppDimensions.xs,
+            vertical: 6,
           ),
           decoration: BoxDecoration(
-            color: AppColors.border,
+            color: AppColors.white,
             borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+            border: Border.all(color: AppColors.border.withValues(alpha: 0.5)),
           ),
           child: Text(
             label,
-            style: AppTextStyles.caption.copyWith(fontSize: 11),
+            style: AppTextStyles.labelSmall.copyWith(
+              fontSize: 10,
+              letterSpacing: 1.0,
+              fontWeight: FontWeight.w600,
+              color: AppColors.textHint,
+            ),
           ),
         ),
       ),
@@ -300,21 +372,29 @@ class _ChatScreenState extends State<ChatScreen> {
           vertical: AppDimensions.xs,
         ),
         alignment: Alignment.centerLeft,
-        child: Row(
-          mainAxisSize: MainAxisSize.min,
-          children: [
-            SizedBox(
-              width: 40,
-              child: _TypingDots(),
-            ),
-            const SizedBox(width: AppDimensions.xs),
-            Text(
-              'typing...',
-              style: AppTextStyles.caption.copyWith(
-                fontStyle: FontStyle.italic,
+        child: Container(
+          padding: const EdgeInsets.symmetric(horizontal: 12, vertical: 8),
+          decoration: BoxDecoration(
+            color: AppColors.white,
+            borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+          ),
+          child: Row(
+            mainAxisSize: MainAxisSize.min,
+            children: [
+              SizedBox(
+                width: 40,
+                child: _TypingDots(),
               ),
-            ),
-          ],
+              const SizedBox(width: AppDimensions.xs),
+              Text(
+                'typing...',
+                style: AppTextStyles.caption.copyWith(
+                  fontStyle: FontStyle.italic,
+                  color: AppColors.textHint,
+                ),
+              ),
+            ],
+          ),
         ),
       );
     });
@@ -325,11 +405,11 @@ class _ChatScreenState extends State<ChatScreen> {
       padding: EdgeInsets.only(
         left: AppDimensions.sm,
         right: AppDimensions.sm,
-        top: AppDimensions.sm,
+        top: AppDimensions.sm + 2,
         bottom: MediaQuery.of(context).padding.bottom + AppDimensions.sm,
       ),
       decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
+        color: AppColors.white,
         boxShadow: [
           BoxShadow(
             color: AppColors.black.withValues(alpha: 0.05),
@@ -341,18 +421,38 @@ class _ChatScreenState extends State<ChatScreen> {
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.end,
         children: [
-          IconButton(
-            icon: const Icon(Icons.attach_file),
-            color: AppColors.textSecondary,
-            onPressed: _onAttachmentPressed,
+          // Attachment button
+          Container(
+            width: 40,
+            height: 40,
+            margin: const EdgeInsets.only(bottom: 2),
+            child: Material(
+              color: AppColors.background,
+              borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+              child: InkWell(
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                onTap: _onAttachmentPressed,
+                child: const Center(
+                  child: Icon(
+                    Icons.add,
+                    color: AppColors.textSecondary,
+                    size: 22,
+                  ),
+                ),
+              ),
+            ),
           ),
+          const SizedBox(width: AppDimensions.sm),
+
+          // Message text field
           Expanded(
             child: Container(
               constraints: const BoxConstraints(maxHeight: 120),
               decoration: BoxDecoration(
                 color: AppColors.background,
-                borderRadius: BorderRadius.circular(
-                  AppDimensions.radiusLg,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusXl),
+                border: Border.all(
+                  color: AppColors.border.withValues(alpha: 0.5),
                 ),
               ),
               child: TextField(
@@ -361,10 +461,14 @@ class _ChatScreenState extends State<ChatScreen> {
                 onChanged: _onTextChanged,
                 maxLines: null,
                 textInputAction: TextInputAction.newline,
-                decoration: const InputDecoration(
+                style: AppTextStyles.bodyMedium,
+                decoration: InputDecoration(
                   hintText: 'Type a message...',
+                  hintStyle: AppTextStyles.bodyMedium.copyWith(
+                    color: AppColors.textHint,
+                  ),
                   border: InputBorder.none,
-                  contentPadding: EdgeInsets.symmetric(
+                  contentPadding: const EdgeInsets.symmetric(
                     horizontal: 16,
                     vertical: 10,
                   ),
@@ -372,7 +476,9 @@ class _ChatScreenState extends State<ChatScreen> {
               ),
             ),
           ),
-          const SizedBox(width: AppDimensions.xs),
+          const SizedBox(width: AppDimensions.sm),
+
+          // Send button
           Obx(() => _buildSendButton()),
         ],
       ),
@@ -386,6 +492,16 @@ class _ChatScreenState extends State<ChatScreen> {
       width: 44,
       height: 44,
       margin: const EdgeInsets.only(bottom: 2),
+      decoration: BoxDecoration(
+        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+        boxShadow: [
+          BoxShadow(
+            color: AppColors.primary.withValues(alpha: 0.25),
+            blurRadius: 8,
+            offset: const Offset(0, 2),
+          ),
+        ],
+      ),
       child: Material(
         color: AppColors.primary,
         borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
@@ -444,36 +560,76 @@ class _ChatScreenState extends State<ChatScreen> {
                       icon: Icons.camera_alt,
                       label: 'Camera',
                       color: AppColors.primary,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        // Camera action placeholder
+                        final image = await ImagePicker().pickImage(source: ImageSource.camera, imageQuality: 70);
+                        if (image != null) {
+                          await _chatController.sendImageMessage(File(image.path));
+                        }
                       },
                     ),
                     _AttachmentOption(
                       icon: Icons.photo,
                       label: 'Gallery',
                       color: AppColors.info,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        // Gallery action placeholder
+                        final image = await ImagePicker().pickImage(source: ImageSource.gallery, imageQuality: 70);
+                        if (image != null) {
+                          await _chatController.sendImageMessage(File(image.path));
+                        }
                       },
                     ),
                     _AttachmentOption(
                       icon: Icons.insert_drive_file,
                       label: 'Document',
                       color: AppColors.secondary,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        // Document action placeholder
+                        final result = await FilePicker.platform.pickFiles(
+                          type: FileType.custom,
+                          allowedExtensions: ['pdf', 'doc', 'docx', 'txt', 'xls', 'xlsx'],
+                        );
+                        if (result != null && result.files.single.path != null) {
+                          final file = File(result.files.single.path!);
+                          final fileName = result.files.single.name;
+                          try {
+                            final storageRepo = Get.find<StorageRepository>();
+                            final timestamp = DateTime.now().millisecondsSinceEpoch;
+                            final path = '${_authController.userId}/${timestamp}_$fileName';
+                            final publicUrl = await storageRepo.uploadFile('chat-documents', path, file);
+                            await _chatController.sendMessage(fileName, type: 'document', mediaUrl: publicUrl);
+                          } catch (e) {
+                            AppSnackbar.error('Failed to send document');
+                          }
+                        }
                       },
                     ),
                     _AttachmentOption(
                       icon: Icons.location_on,
                       label: 'Location',
                       color: AppColors.error,
-                      onTap: () {
+                      onTap: () async {
                         Navigator.pop(context);
-                        // Location action placeholder
+                        try {
+                          LocationPermission permission = await Geolocator.checkPermission();
+                          if (permission == LocationPermission.denied) {
+                            permission = await Geolocator.requestPermission();
+                          }
+                          if (permission == LocationPermission.deniedForever || permission == LocationPermission.denied) {
+                            AppSnackbar.error('Location permission denied');
+                            return;
+                          }
+                          final position = await Geolocator.getCurrentPosition(desiredAccuracy: LocationAccuracy.medium);
+                          final placemarks = await placemarkFromCoordinates(position.latitude, position.longitude);
+                          final place = placemarks.isNotEmpty ? placemarks.first : null;
+                          final address = place != null
+                              ? '${place.street ?? ''}, ${place.locality ?? ''}, ${place.administrativeArea ?? ''}'
+                              : '${position.latitude}, ${position.longitude}';
+                          await _chatController.sendLocationMessage(address);
+                        } catch (e) {
+                          AppSnackbar.error('Failed to get location');
+                        }
                       },
                     ),
                   ],
@@ -522,7 +678,7 @@ class _MessageBubble extends StatelessWidget {
               decoration: BoxDecoration(
                 color: isSent
                     ? AppColors.primary
-                    : AppColors.background,
+                    : AppColors.white,
                 borderRadius: BorderRadius.only(
                   topLeft: const Radius.circular(AppDimensions.radiusLg),
                   topRight: const Radius.circular(AppDimensions.radiusLg),
@@ -533,22 +689,20 @@ class _MessageBubble extends StatelessWidget {
                       ? const Radius.circular(4)
                       : const Radius.circular(AppDimensions.radiusLg),
                 ),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.black.withValues(alpha: 0.04),
+                    blurRadius: 4,
+                    offset: const Offset(0, 1),
+                  ),
+                ],
               ),
               child: Column(
                 crossAxisAlignment: isSent
                     ? CrossAxisAlignment.end
                     : CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    content,
-                    style: TextStyle(
-                      fontSize: 15,
-                      color: isSent
-                          ? AppColors.white
-                          : AppColors.textPrimary,
-                      height: 1.4,
-                    ),
-                  ),
+                  _buildMessageContent(content),
                   const SizedBox(height: 4),
                   Row(
                     mainAxisSize: MainAxisSize.min,
@@ -583,6 +737,88 @@ class _MessageBubble extends StatelessWidget {
         ],
       ),
     );
+  }
+
+  Widget _buildMessageContent(String content) {
+    final type = message['type']?.toString() ?? 'text';
+    final mediaUrl = message['media_url']?.toString();
+
+    switch (type) {
+      case 'image':
+        return Column(
+          crossAxisAlignment: isSent ? CrossAxisAlignment.end : CrossAxisAlignment.start,
+          children: [
+            ClipRRect(
+              borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              child: mediaUrl != null
+                  ? CachedNetworkImage(
+                      imageUrl: mediaUrl,
+                      width: 200,
+                      height: 150,
+                      fit: BoxFit.cover,
+                      placeholder: (_, __) => Container(
+                        width: 200,
+                        height: 150,
+                        color: AppColors.background,
+                        child: const Center(child: CircularProgressIndicator(strokeWidth: 2)),
+                      ),
+                      errorWidget: (_, __, ___) => Container(
+                        width: 200,
+                        height: 150,
+                        color: AppColors.background,
+                        child: const Icon(Icons.broken_image, color: AppColors.textHint),
+                      ),
+                    )
+                  : const SizedBox.shrink(),
+            ),
+          ],
+        );
+      case 'document':
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.insert_drive_file, size: 20, color: isSent ? AppColors.white : AppColors.primary),
+            const SizedBox(width: 8),
+            Flexible(
+              child: Text(
+                content,
+                style: TextStyle(
+                  fontSize: 14,
+                  color: isSent ? AppColors.white : AppColors.textPrimary,
+                  decoration: TextDecoration.underline,
+                ),
+              ),
+            ),
+          ],
+        );
+      case 'location':
+        return Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            Icon(Icons.location_on, size: 20, color: isSent ? AppColors.white : AppColors.error),
+            const SizedBox(width: 6),
+            Flexible(
+              child: Text(
+                content,
+                style: TextStyle(
+                  fontSize: 15,
+                  color: isSent ? AppColors.white : AppColors.textPrimary,
+                  height: 1.4,
+                ),
+              ),
+            ),
+          ],
+        );
+      default: // 'text'
+        return Text(
+          content,
+          style: TextStyle(
+            fontSize: 15,
+            color: isSent ? AppColors.white : AppColors.textPrimary,
+            height: 1.4,
+          ),
+        );
+    }
   }
 }
 

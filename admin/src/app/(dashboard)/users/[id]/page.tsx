@@ -27,7 +27,7 @@ export default async function UserDetailPage({ params }: Props) {
 
   const { data: bookings } = await supabase
     .from("bookings")
-    .select("id, booking_status, agreed_price, created_at, jobs(title)")
+    .select("id, status, agreed_price, created_at, jobs(title)")
     .or(`client_id.eq.${id},worker_id.eq.${id}`)
     .order("created_at", { ascending: false })
     .limit(10);
@@ -120,7 +120,7 @@ export default async function UserDetailPage({ params }: Props) {
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Experience</p>
-                    <p className="font-medium">{workerProfile.years_of_experience || 0} years</p>
+                    <p className="font-medium">{workerProfile.experience_years || 0} years</p>
                   </div>
                   <div>
                     <p className="text-sm text-muted-foreground">Hourly Rate</p>
@@ -159,7 +159,7 @@ export default async function UserDetailPage({ params }: Props) {
               ) : (
                 <div className="space-y-3">
                   {bookings.map((booking) => {
-                    const job = booking.jobs as { title: string } | null;
+                    const job = booking.jobs as unknown as { title: string } | null;
                     return (
                       <div key={booking.id} className="flex items-center justify-between rounded-lg border p-3">
                         <div>
@@ -168,8 +168,8 @@ export default async function UserDetailPage({ params }: Props) {
                         </div>
                         <div className="flex items-center gap-3">
                           <span className="text-sm font-medium">{formatNaira(booking.agreed_price)}</span>
-                          <Badge className={statusColors[booking.booking_status] || ""}>
-                            {booking.booking_status.replace(/_/g, " ")}
+                          <Badge className={statusColors[booking.status] || ""}>
+                            {booking.status.replace(/_/g, " ")}
                           </Badge>
                         </div>
                       </div>

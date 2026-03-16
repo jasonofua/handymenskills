@@ -9,6 +9,8 @@ class AppCard extends StatelessWidget {
   final EdgeInsets? margin;
   final Color? color;
   final double? borderRadius;
+  final bool showBorder;
+  final Color? borderColor;
 
   const AppCard({
     super.key,
@@ -18,6 +20,8 @@ class AppCard extends StatelessWidget {
     this.margin,
     this.color,
     this.borderRadius,
+    this.showBorder = true,
+    this.borderColor,
   });
 
   @override
@@ -28,10 +32,15 @@ class AppCard extends StatelessWidget {
       decoration: BoxDecoration(
         color: color ?? Theme.of(context).cardColor,
         borderRadius: BorderRadius.circular(borderRadius ?? AppDimensions.cardRadius),
+        border: showBorder
+            ? Border.all(
+                color: borderColor ?? AppColors.primary.withValues(alpha: 0.05),
+              )
+            : null,
         boxShadow: [
           BoxShadow(
-            color: AppColors.black.withValues(alpha: 0.05),
-            blurRadius: 10,
+            color: AppColors.black.withValues(alpha: 0.04),
+            blurRadius: 8,
             offset: const Offset(0, 2),
           ),
         ],

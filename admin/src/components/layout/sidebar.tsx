@@ -114,7 +114,7 @@ export function Sidebar({
       <div className="flex h-14 items-center border-b px-3">
         {!collapsed && (
           <Link href="/" className="flex items-center gap-2 font-bold">
-            <span className="text-lg">Artisan</span>
+            <span className="text-lg">Handymenskills</span>
             <span className="text-xs font-normal text-muted-foreground">Admin</span>
           </Link>
         )}
@@ -146,7 +146,7 @@ export function Sidebar({
       <div className="border-t p-3">
         {!collapsed && (
           <p className="text-xs text-muted-foreground">
-            Artisan Marketplace v1.0
+            Handymenskills v1.0
           </p>
         )}
       </div>

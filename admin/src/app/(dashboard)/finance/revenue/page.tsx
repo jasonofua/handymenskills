@@ -23,14 +23,14 @@ export default async function RevenuePage() {
 
     const { data: payments, count } = await supabase
       .from("payments")
-      .select("platform_fee, amount", { count: "exact" })
-      .eq("payment_status", "completed")
+      .select("amount", { count: "exact" })
+      .eq("status", "success")
       .gte("created_at", monthStart.toISOString())
       .lte("created_at", monthEnd.toISOString());
 
-    const revenue = payments?.reduce((sum, p) => sum + (p.platform_fee || 0), 0) || 0;
     const gmv = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-    const payouts = gmv - revenue;
+    const revenue = gmv;
+    const payouts = 0;
 
     totalRevenue += revenue;
     totalPayouts += payouts;

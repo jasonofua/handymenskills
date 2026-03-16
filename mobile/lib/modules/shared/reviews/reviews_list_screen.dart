@@ -9,7 +9,6 @@ import '../../../controllers/review_controller.dart';
 import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_empty_state.dart';
-import '../../../widgets/common/app_loading.dart';
 import '../../../widgets/common/app_shimmer.dart';
 
 class ReviewsListScreen extends StatefulWidget {
@@ -30,7 +29,9 @@ class _ReviewsListScreenState extends State<ReviewsListScreen> {
   @override
   void initState() {
     super.initState();
-    _reviewController.loadReviews(widget.userId, refresh: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _reviewController.loadReviews(widget.userId, refresh: true);
+    });
   }
 
   Future<void> _onRefresh() async {

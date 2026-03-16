@@ -10,6 +10,7 @@ class ProfileModel {
   final AccountStatus accountStatus;
   final String? city;
   final String? state;
+  final String? lga;
   final String? address;
   final double? latitude;
   final double? longitude;
@@ -29,6 +30,7 @@ class ProfileModel {
     required this.accountStatus,
     this.city,
     this.state,
+    this.lga,
     this.address,
     this.latitude,
     this.longitude,
@@ -51,6 +53,7 @@ class ProfileModel {
           AccountStatus.fromString(json['account_status'] as String?),
       city: json['city'] as String?,
       state: json['state'] as String?,
+      lga: json['lga'] as String?,
       address: json['address'] as String?,
       latitude: (json['latitude'] as num?)?.toDouble(),
       longitude: (json['longitude'] as num?)?.toDouble(),
@@ -75,6 +78,7 @@ class ProfileModel {
       'account_status': accountStatus.name,
       'city': city,
       'state': state,
+      'lga': lga,
       'address': address,
       'latitude': latitude,
       'longitude': longitude,
@@ -96,6 +100,7 @@ class ProfileModel {
     AccountStatus? accountStatus,
     String? city,
     String? state,
+    String? lga,
     String? address,
     double? latitude,
     double? longitude,
@@ -115,6 +120,7 @@ class ProfileModel {
       accountStatus: accountStatus ?? this.accountStatus,
       city: city ?? this.city,
       state: state ?? this.state,
+      lga: lga ?? this.lga,
       address: address ?? this.address,
       latitude: latitude ?? this.latitude,
       longitude: longitude ?? this.longitude,

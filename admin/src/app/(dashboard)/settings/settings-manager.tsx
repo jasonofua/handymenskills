@@ -20,6 +20,13 @@ import type { SystemSetting } from "@/types";
 import { Save, Plus, Loader2, Settings, Users } from "lucide-react";
 import { formatDate } from "@/lib/format";
 
+function formatSettingKey(key: string): string {
+  return key
+    .split("_")
+    .map((word) => word.charAt(0).toUpperCase() + word.slice(1))
+    .join(" ");
+}
+
 export function SettingsManager({
   initialSettings,
   admins,
@@ -105,7 +112,7 @@ export function SettingsManager({
                 <div key={setting.id} className="space-y-2">
                   <div className="flex items-center justify-between">
                     <div>
-                      <p className="font-mono text-sm font-medium">{setting.key}</p>
+                      <p className="text-sm font-medium">{formatSettingKey(setting.key)}</p>
                       {setting.description && (
                         <p className="text-xs text-muted-foreground">{setting.description}</p>
                       )}

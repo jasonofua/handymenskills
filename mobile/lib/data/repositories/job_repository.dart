@@ -1,7 +1,5 @@
 import 'dart:io';
 
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class JobRepository {
@@ -40,7 +38,7 @@ class JobRepository {
       final response = await supabase
           .from('jobs')
           .select(
-              '*, categories(*), profiles!jobs_client_id_fkey(*), applications(*, profiles(*), worker_profiles(*))')
+              '*, categories(*), profiles!jobs_client_id_fkey(*), applications(*, worker_profiles(*, profiles(*)))')
           .eq('id', id)
           .single();
       return response;

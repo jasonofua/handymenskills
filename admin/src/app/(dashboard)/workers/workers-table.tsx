@@ -49,9 +49,9 @@ const columns: ColumnDef<WorkerRow, unknown>[] = [
     },
   },
   {
-    accessorKey: "years_of_experience",
+    accessorKey: "experience_years",
     header: "Experience",
-    cell: ({ row }) => `${row.original.years_of_experience || 0} years`,
+    cell: ({ row }) => `${row.original.experience_years || 0} years`,
   },
   {
     accessorKey: "verification_status",

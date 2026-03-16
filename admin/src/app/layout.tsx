@@ -14,8 +14,8 @@ const geistMono = Geist_Mono({
 });
 
 export const metadata: Metadata = {
-  title: "Artisan Marketplace - Admin Dashboard",
-  description: "Admin dashboard for managing the Artisan Marketplace platform",
+  title: "Handymenskills - Admin Dashboard",
+  description: "Admin dashboard for managing the Handymenskills platform",
 };
 
 export default function RootLayout({

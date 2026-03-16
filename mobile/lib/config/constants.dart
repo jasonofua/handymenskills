@@ -1,22 +1,26 @@
 class AppConstants {
   AppConstants._();
 
-  static const String appName = 'Artisan Marketplace';
+  static const String appName = 'Handymenskills';
 
   // Supabase
   static const String supabaseUrl = String.fromEnvironment(
     'SUPABASE_URL',
-    defaultValue: 'https://your-project.supabase.co',
+    defaultValue: 'https://mwlazxvlybqrlwbfxxny.supabase.co',
   );
   static const String supabaseAnonKey = String.fromEnvironment(
     'SUPABASE_ANON_KEY',
-    defaultValue: 'your-anon-key',
+    defaultValue: 'sb_publishable_G5UDOVh1AZ3wjY_FGhhQ0Q_ujWlJdo5',
   );
 
   // Paystack
   static const String paystackPublicKey = String.fromEnvironment(
     'PAYSTACK_PUBLIC_KEY',
-    defaultValue: 'pk_test_xxx',
+    defaultValue: 'pk_test_d64ed1a2ec6e04441b4627b6ae431dd99879aa1a',
+  );
+  static const String paystackSecretKey = String.fromEnvironment(
+    'PAYSTACK_SECRET_KEY',
+    defaultValue: 'sk_test_d2e935c587ac4f7c509960a18d21bef725eaa0db',
   );
 
   // Google Maps

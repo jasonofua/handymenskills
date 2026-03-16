@@ -1,14 +1,12 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../data/repositories/profile_repository.dart';
-import '../data/repositories/storage_repository.dart';
-import '../config/constants.dart';
 import '../widgets/common/app_snackbar.dart';
 import 'auth_controller.dart';
 
 class ProfileController extends GetxController {
   final _profileRepo = Get.find<ProfileRepository>();
-  final _storageRepo = Get.find<StorageRepository>();
   final _authController = Get.find<AuthController>();
 
   final RxMap<String, dynamic> profile = <String, dynamic>{}.obs;
@@ -61,6 +59,8 @@ class ProfileController extends GetxController {
   Future<void> updateLocation(double lat, double lng) async {
     try {
       await _profileRepo.updateLocation(lat, lng);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('ProfileController: Failed to update location: $e');
+    }
   }
 }

@@ -37,7 +37,7 @@ export default async function ReportDetailPage({ params }: Props) {
     account_status: string;
   } | null;
 
-  const isPending = report.report_status === "pending" || report.report_status === "reviewing";
+  const isPending = report.status === "pending" || report.status === "reviewing";
 
   return (
     <div className="space-y-6">
@@ -53,8 +53,8 @@ export default async function ReportDetailPage({ params }: Props) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Report</CardTitle>
-                <Badge className={statusColors[report.report_status] || ""}>
-                  {report.report_status}
+                <Badge className={statusColors[report.status] || ""}>
+                  {report.status}
                 </Badge>
               </div>
             </CardHeader>

@@ -1,4 +1,5 @@
 import 'package:get/get.dart';
+import '../config/supabase_config.dart';
 import '../data/repositories/dispute_repository.dart';
 import '../widgets/common/app_snackbar.dart';
 import 'auth_controller.dart';
@@ -43,9 +44,24 @@ class DisputeController extends GetxController {
   }) async {
     try {
       isSubmitting.value = true;
+      final userId = _authController.userId;
+
+      // Look up the booking to determine the other party
+      final booking = await supabase
+          .from('bookings')
+          .select('client_id, worker_id')
+          .eq('id', bookingId)
+          .single();
+
+      final clientId = booking['client_id'] as String;
+      final workerId = booking['worker_id'] as String;
+      final raisedAgainst = (userId == clientId) ? workerId : clientId;
+
       await _disputeRepo.createDispute({
         'booking_id': bookingId,
-        'initiator_id': _authController.userId,
+        'initiator_id': userId,
+        'raised_by': userId,
+        'raised_against': raisedAgainst,
         'reason': reason,
         'evidence': evidence,
       });

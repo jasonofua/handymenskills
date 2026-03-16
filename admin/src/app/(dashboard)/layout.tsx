@@ -34,12 +34,12 @@ export default async function DashboardLayout({
   const { count: pendingReports } = await supabase
     .from("reports")
     .select("*", { count: "exact", head: true })
-    .eq("report_status", "pending");
+    .eq("status", "pending");
 
   const { count: openDisputes } = await supabase
     .from("disputes")
     .select("*", { count: "exact", head: true })
-    .in("dispute_status", ["open", "under_review"]);
+    .in("status", ["open", "under_review"]);
 
   const pendingCounts: Record<string, number> = {};
   if (pendingVerifications) pendingCounts["/workers"] = pendingVerifications;

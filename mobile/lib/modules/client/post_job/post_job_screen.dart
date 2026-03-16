@@ -1,8 +1,12 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
+import '../../../controllers/auth_controller.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/worker_profile_controller.dart';
 import '../../../routes/app_routes.dart';
@@ -10,6 +14,9 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
+import '../../../data/constants/nigerian_locations.dart';
+import '../../../data/repositories/skill_repository.dart';
+import '../../../data/repositories/storage_repository.dart';
 import '../../../widgets/common/app_text_field.dart';
 import '../../../widgets/common/app_dropdown.dart';
 import '../../../widgets/common/app_chip.dart';
@@ -26,6 +33,7 @@ class PostJobScreen extends StatefulWidget {
 class _PostJobScreenState extends State<PostJobScreen> {
   final _jobController = Get.find<JobController>();
   final _workerProfileController = Get.find<WorkerProfileController>();
+  final _authController = Get.find<AuthController>();
 
   final _pageController = PageController();
   int _currentStep = 0;
@@ -44,25 +52,47 @@ class _PostJobScreenState extends State<PostJobScreen> {
   final _budgetMinController = TextEditingController();
   final _budgetMaxController = TextEditingController();
   String _budgetType = 'fixed';
-  String _urgency = 'normal';
+  String _urgency = 'medium';
 
   // Step 3: Location & Date
   final _step3Key = GlobalKey<FormState>();
   final _addressController = TextEditingController();
   final _cityController = TextEditingController();
-  final _stateController = TextEditingController();
+  String? _selectedJobState;
+  String? _selectedJobLga;
   DateTime? _startDate;
   DateTime? _endDate;
   bool _isRemote = false;
 
-  // Step 4: Review
-  final List<String> _imageUrls = [];
+  // Step 4: Images
+  final List<File> _localImageFiles = [];
+  bool _isSubmitting = false;
+
+  // Categories — loaded locally from SkillRepository to avoid Obx issues
+  List<Map<String, dynamic>> _categories = [];
+  bool _isCategoriesLoading = true;
 
   @override
   void initState() {
     super.initState();
-    if (_workerProfileController.categories.isEmpty) {
-      _workerProfileController.loadCategories();
+    _loadCategories();
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final skillRepo = Get.find<SkillRepository>();
+      final cats = await skillRepo.getCategories();
+      if (mounted) {
+        setState(() {
+          _categories = cats;
+          _isCategoriesLoading = false;
+        });
+      }
+    } catch (e) {
+      if (mounted) {
+        setState(() => _isCategoriesLoading = false);
+        AppSnackbar.error('Failed to load categories');
+      }
     }
   }
 
@@ -75,7 +105,6 @@ class _PostJobScreenState extends State<PostJobScreen> {
     _budgetMaxController.dispose();
     _addressController.dispose();
     _cityController.dispose();
-    _stateController.dispose();
     super.dispose();
   }
 
@@ -107,8 +136,12 @@ class _PostJobScreenState extends State<PostJobScreen> {
       case 1:
         return _step2Key.currentState?.validate() ?? false;
       case 2:
-        if (!_isRemote && !(_step3Key.currentState?.validate() ?? false)) {
-          return false;
+        if (!_isRemote) {
+          if (!(_step3Key.currentState?.validate() ?? false)) return false;
+          if (_selectedJobState == null) {
+            AppSnackbar.warning('Please select a state');
+            return false;
+          }
         }
         return true;
       case 3:
@@ -119,13 +152,16 @@ class _PostJobScreenState extends State<PostJobScreen> {
   }
 
   Future<void> _submitJob() async {
+    if (_isSubmitting) return;
     if (!_validateCurrentStep()) return;
+    setState(() => _isSubmitting = true);
 
+    try {
     final data = <String, dynamic>{
       'title': _titleController.text.trim(),
       'description': _descriptionController.text.trim(),
       'category_id': _selectedCategoryId,
-      'required_skills': _selectedSkillIds,
+      'skill_ids': _selectedSkillIds,
       'budget_min': double.tryParse(_budgetMinController.text) ?? AppConstants.minBudget,
       'budget_max': double.tryParse(_budgetMaxController.text) ?? AppConstants.minBudget,
       'budget_type': _budgetType,
@@ -137,7 +173,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
     if (!_isRemote) {
       data['address'] = _addressController.text.trim();
       data['city'] = _cityController.text.trim();
-      data['state'] = _stateController.text.trim();
+      data['state'] = _selectedJobState;
     }
 
     if (_startDate != null) {
@@ -146,13 +182,28 @@ class _PostJobScreenState extends State<PostJobScreen> {
     if (_endDate != null) {
       data['end_date'] = _endDate!.toIso8601String();
     }
-    if (_imageUrls.isNotEmpty) {
-      data['images'] = _imageUrls;
+    if (_localImageFiles.isNotEmpty) {
+      final uploadedUrls = await _uploadImages();
+      if (uploadedUrls.isNotEmpty) {
+        data['image_urls'] = uploadedUrls;
+      }
     }
 
     final result = await _jobController.createJob(data);
     if (result != null && mounted) {
-      context.go(AppRoutes.clientMyJobs);
+      final jobId = result['id']?.toString();
+      final jobTitle = _titleController.text.trim();
+      final uri = Uri(
+        path: AppRoutes.clientJobPostedSuccess,
+        queryParameters: {
+          if (jobId != null) 'jobId': jobId,
+          if (jobTitle.isNotEmpty) 'jobTitle': jobTitle,
+        },
+      );
+      context.go(uri.toString());
+    }
+    } finally {
+      if (mounted) setState(() => _isSubmitting = false);
     }
   }
 
@@ -292,32 +343,31 @@ class _PostJobScreenState extends State<PostJobScreen> {
               maxLength: 2000,
               validator: (v) {
                 if (v == null || v.trim().isEmpty) return 'Description is required';
-                if (v.trim().length < 30) return 'Please provide a more detailed description';
+                if (v.trim().length < 50) return 'Description must be at least 50 characters';
                 return null;
               },
             ),
             const SizedBox(height: AppDimensions.md),
-            Obx(() {
-              final categories = _workerProfileController.categories;
-              return AppDropdown<String>(
-                label: 'Category',
-                hint: 'Select a category',
-                value: _selectedCategoryId,
-                items: categories.map((c) => DropdownMenuItem(
-                  value: c['id']?.toString(),
-                  child: Text(c['name']?.toString() ?? ''),
-                )).toList(),
-                onChanged: (value) {
-                  setState(() => _selectedCategoryId = value);
-                  if (value != null) {
-                    _workerProfileController.loadSkillsByCategory(value);
-                    _selectedSkillIds.clear();
-                    _selectedSkillNames.clear();
-                  }
-                },
-                validator: (v) => v == null ? 'Category is required' : null,
-              );
-            }),
+            AppDropdown<String>(
+              label: 'Category',
+              hint: _isCategoriesLoading ? 'Loading categories...' : 'Select a category',
+              value: _selectedCategoryId,
+              items: _categories.map((c) => DropdownMenuItem(
+                value: c['id']?.toString(),
+                child: Text(c['name']?.toString() ?? ''),
+              )).toList(),
+              onChanged: _isCategoriesLoading
+                  ? null
+                  : (value) {
+                      setState(() => _selectedCategoryId = value);
+                      if (value != null) {
+                        _workerProfileController.loadSkillsByCategory(value);
+                        _selectedSkillIds.clear();
+                        _selectedSkillNames.clear();
+                      }
+                    },
+              validator: (v) => v == null ? 'Category is required' : null,
+            ),
             const SizedBox(height: AppDimensions.md),
             const Text(
               'Required Skills (optional)',
@@ -326,10 +376,25 @@ class _PostJobScreenState extends State<PostJobScreen> {
             const SizedBox(height: 8),
             Obx(() {
               final skills = _workerProfileController.skills;
+              final isLoadingSkills = _workerProfileController.isSkillsLoading.value;
+              // Access .length to register the observable with GetX before any early return
+              final _ = skills.length;
               if (_selectedCategoryId == null) {
                 return Text(
                   'Select a category first',
                   style: AppTextStyles.bodySmall.copyWith(fontStyle: FontStyle.italic),
+                );
+              }
+              if (isLoadingSkills) {
+                return const Padding(
+                  padding: EdgeInsets.symmetric(vertical: 8),
+                  child: Center(
+                    child: SizedBox(
+                      width: 20,
+                      height: 20,
+                      child: CircularProgressIndicator(strokeWidth: 2),
+                    ),
+                  ),
                 );
               }
               if (skills.isEmpty) {
@@ -371,7 +436,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
 
   Widget _buildStep2Budget() {
     final budgetTypes = ['fixed', 'hourly', 'negotiable'];
-    final urgencyLevels = ['low', 'normal', 'urgent', 'emergency'];
+    final urgencyLevels = ['low', 'medium', 'high', 'emergency'];
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.screenPadding),
@@ -458,8 +523,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 final label = level[0].toUpperCase() + level.substring(1);
                 final colors = {
                   'low': AppColors.urgencyLow,
-                  'normal': AppColors.urgencyNormal,
-                  'urgent': AppColors.urgencyUrgent,
+                  'medium': AppColors.urgencyNormal,
+                  'high': AppColors.urgencyUrgent,
                   'emergency': AppColors.urgencyEmergency,
                 };
                 final isSelected = _urgency == level;
@@ -504,8 +569,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
   Widget _buildUrgencyDescription() {
     final descriptions = {
       'low': 'Can be done within the next few weeks.',
-      'normal': 'Should be done within a week.',
-      'urgent': 'Needed within 24-48 hours.',
+      'medium': 'Should be done within a week.',
+      'high': 'Needed within 24-48 hours.',
       'emergency': 'Needed immediately! Higher costs may apply.',
     };
     return AppCard(
@@ -578,38 +643,50 @@ class _PostJobScreenState extends State<PostJobScreen> {
                 },
               ),
               const SizedBox(height: AppDimensions.md),
-              Row(
-                children: [
-                  Expanded(
-                    child: AppTextField(
-                      label: 'City',
-                      hint: 'City',
-                      controller: _cityController,
-                      textInputAction: TextInputAction.next,
-                      validator: (v) {
-                        if (!_isRemote && (v == null || v.trim().isEmpty)) {
-                          return 'City is required';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                  const SizedBox(width: AppDimensions.md),
-                  Expanded(
-                    child: AppTextField(
-                      label: 'State',
-                      hint: 'State',
-                      controller: _stateController,
-                      textInputAction: TextInputAction.done,
-                      validator: (v) {
-                        if (!_isRemote && (v == null || v.trim().isEmpty)) {
-                          return 'State is required';
-                        }
-                        return null;
-                      },
-                    ),
-                  ),
-                ],
+              AppTextField(
+                label: 'City',
+                hint: 'Enter city',
+                controller: _cityController,
+                textInputAction: TextInputAction.done,
+                validator: (v) {
+                  if (!_isRemote && (v == null || v.trim().isEmpty)) {
+                    return 'City is required';
+                  }
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppDimensions.md),
+              AppDropdown<String>(
+                label: 'State',
+                hint: 'Select state',
+                value: _selectedJobState,
+                items: NigerianLocations.states
+                    .map((s) => DropdownMenuItem(value: s, child: Text(s)))
+                    .toList(),
+                onChanged: (val) {
+                  setState(() {
+                    _selectedJobState = val;
+                    _selectedJobLga = null;
+                  });
+                },
+                validator: (v) {
+                  if (!_isRemote && v == null) return 'State is required';
+                  return null;
+                },
+              ),
+              const SizedBox(height: AppDimensions.md),
+              AppDropdown<String>(
+                label: 'LGA',
+                hint: _selectedJobState == null ? 'Select a state first' : 'Select LGA',
+                value: _selectedJobLga,
+                items: _selectedJobState != null
+                    ? NigerianLocations.lgasForState(_selectedJobState!)
+                        .map((l) => DropdownMenuItem(value: l, child: Text(l)))
+                        .toList()
+                    : [],
+                onChanged: _selectedJobState == null
+                    ? null
+                    : (val) => setState(() => _selectedJobLga = val),
               ),
               const SizedBox(height: AppDimensions.lg),
             ],
@@ -648,8 +725,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
   }
 
   Widget _buildStep4Review() {
-    final category = _workerProfileController.categories
-        .firstWhereOrNull((c) => c['id'] == _selectedCategoryId);
+    final category = _categories
+        .cast<Map<String, dynamic>?>()
+        .firstWhere((c) => c?['id']?.toString() == _selectedCategoryId, orElse: () => null);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.screenPadding),
@@ -701,7 +779,9 @@ class _PostJobScreenState extends State<PostJobScreen> {
               if (!_isRemote) ...[
                 _ReviewItem('Address', _addressController.text),
                 _ReviewItem('City', _cityController.text),
-                _ReviewItem('State', _stateController.text),
+                _ReviewItem('State', _selectedJobState ?? 'N/A'),
+                if (_selectedJobLga != null)
+                  _ReviewItem('LGA', _selectedJobLga!),
               ],
               if (_startDate != null)
                 _ReviewItem('Start', _formatDate(_startDate!)),
@@ -711,33 +791,103 @@ class _PostJobScreenState extends State<PostJobScreen> {
             onEdit: () => _goToStep(2),
           ),
           const SizedBox(height: AppDimensions.lg),
-          // Images section (placeholder for future image picker)
-          AppCard(
-            color: AppColors.background,
-            child: InkWell(
-              onTap: () {
-                AppSnackbar.info('Image upload will be available soon');
-              },
-              child: const Row(
-                mainAxisAlignment: MainAxisAlignment.center,
+          // Images section
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Text('JOB IMAGES', style: AppTextStyles.sectionHeader),
+              const SizedBox(height: AppDimensions.sm),
+              Wrap(
+                spacing: AppDimensions.sm,
+                runSpacing: AppDimensions.sm,
                 children: [
-                  Icon(Icons.add_photo_alternate_outlined,
-                      color: AppColors.textHint, size: 24),
-                  SizedBox(width: 8),
-                  Text(
-                    'Add Images (Optional)',
-                    style: TextStyle(
-                      color: AppColors.textSecondary,
-                      fontWeight: FontWeight.w500,
+                  ..._localImageFiles.asMap().entries.map((entry) {
+                    return Stack(
+                      children: [
+                        ClipRRect(
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                          child: Image.file(
+                            entry.value,
+                            width: 90,
+                            height: 90,
+                            fit: BoxFit.cover,
+                          ),
+                        ),
+                        Positioned(
+                          top: 4,
+                          right: 4,
+                          child: GestureDetector(
+                            onTap: () => setState(() => _localImageFiles.removeAt(entry.key)),
+                            child: Container(
+                              padding: const EdgeInsets.all(2),
+                              decoration: const BoxDecoration(
+                                color: AppColors.error,
+                                shape: BoxShape.circle,
+                              ),
+                              child: const Icon(Icons.close, size: 14, color: AppColors.white),
+                            ),
+                          ),
+                        ),
+                      ],
+                    );
+                  }),
+                  if (_localImageFiles.length < 5)
+                    GestureDetector(
+                      onTap: () => _pickJobImages(),
+                      child: Container(
+                        width: 90,
+                        height: 90,
+                        decoration: BoxDecoration(
+                          color: AppColors.background,
+                          borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                          border: Border.all(color: AppColors.primary.withValues(alpha: 0.3)),
+                        ),
+                        child: Column(
+                          mainAxisAlignment: MainAxisAlignment.center,
+                          children: [
+                            Icon(Icons.add_photo_alternate_outlined, color: AppColors.primary.withValues(alpha: 0.6), size: 28),
+                            const SizedBox(height: 4),
+                            Text('Add', style: AppTextStyles.caption.copyWith(color: AppColors.primary)),
+                          ],
+                        ),
+                      ),
                     ),
-                  ),
                 ],
               ),
-            ),
+            ],
           ),
         ],
       ),
     );
+  }
+
+  Future<void> _pickJobImages() async {
+    final images = await ImagePicker().pickMultiImage(imageQuality: 70);
+    if (images.isEmpty) return;
+    final remaining = 5 - _localImageFiles.length;
+    final toAdd = images.take(remaining).toList();
+    setState(() {
+      for (final image in toAdd) {
+        _localImageFiles.add(File(image.path));
+      }
+    });
+  }
+
+  Future<List<String>> _uploadImages() async {
+    if (_localImageFiles.isEmpty) return [];
+    final urls = <String>[];
+    try {
+      final storageRepo = Get.find<StorageRepository>();
+      for (final file in _localImageFiles) {
+        final timestamp = DateTime.now().millisecondsSinceEpoch;
+        final path = '${_authController.userId}/$timestamp.jpg';
+        final publicUrl = await storageRepo.uploadFile('job-images', path, file);
+        urls.add(publicUrl);
+      }
+    } catch (e) {
+      AppSnackbar.error('Failed to upload some images');
+    }
+    return urls;
   }
 
   String _formatDate(DateTime date) {
@@ -775,9 +925,8 @@ class _PostJobScreenState extends State<PostJobScreen> {
               ),
             if (_currentStep > 0) const SizedBox(width: AppDimensions.md),
             Expanded(
-              flex: _currentStep == 0 ? 1 : 1,
-              child: Obx(() => ElevatedButton(
-                onPressed: _jobController.isSaving.value
+              child: ElevatedButton(
+                onPressed: _isSubmitting
                     ? null
                     : () {
                         if (_currentStep < _totalSteps - 1) {
@@ -794,7 +943,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                     borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                   ),
                 ),
-                child: _jobController.isSaving.value
+                child: _isSubmitting
                     ? const SizedBox(
                         width: 20,
                         height: 20,
@@ -807,7 +956,7 @@ class _PostJobScreenState extends State<PostJobScreen> {
                         _currentStep < _totalSteps - 1 ? 'Next' : 'Post Job',
                         style: AppTextStyles.button,
                       ),
-              )),
+              ),
             ),
           ],
         ),

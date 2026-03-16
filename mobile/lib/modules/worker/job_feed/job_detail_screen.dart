@@ -1,6 +1,6 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
-import 'package:go_router/go_router.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -8,11 +8,11 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/application_controller.dart';
-import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_bottom_sheet.dart';
 import '../../../widgets/common/app_cached_image.dart';
 import '../../../widgets/common/app_card.dart';
+import '../../../widgets/common/app_chip.dart';
 import '../../../widgets/common/app_error_widget.dart';
 import '../../../widgets/common/app_shimmer.dart';
 import '../../../widgets/common/app_status_badge.dart';
@@ -34,7 +34,9 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _jobController.loadJobDetail(widget.jobId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _jobController.loadJobDetail(widget.jobId);
+    });
   }
 
   void _showApplySheet() {
@@ -150,8 +152,29 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Job Details'),
+        leading: IconButton(
+          onPressed: () => Navigator.pop(context),
+          icon: const Icon(Icons.arrow_back_ios_new, size: 20),
+        ),
+        title: const Text('Job Detail'),
+        centerTitle: true,
+        actions: [
+          IconButton(
+            onPressed: () {
+              final job = _jobController.currentJob;
+              final title = job['title'] ?? 'Check out this job';
+              Clipboard.setData(
+                ClipboardData(
+                    text: 'Check out this job: $title on HandySkills'),
+              );
+              Get.snackbar('Copied', 'Job link copied to clipboard',
+                  snackPosition: SnackPosition.BOTTOM);
+            },
+            icon: const Icon(Icons.share_outlined, size: 22),
+          ),
+        ],
       ),
       body: Obx(() {
         if (_jobController.isLoadingDetail.value &&
@@ -172,32 +195,58 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       }),
       bottomNavigationBar: Obx(() {
         final job = _jobController.currentJob;
-        if (job.isEmpty || job['status'] != 'open') return const SizedBox.shrink();
+        if (job.isEmpty || job['status'] != 'open') {
+          return const SizedBox.shrink();
+        }
 
         return Container(
           padding: EdgeInsets.only(
             left: AppDimensions.screenPadding,
             right: AppDimensions.screenPadding,
-            bottom: MediaQuery.of(context).padding.bottom + AppDimensions.md,
+            bottom: MediaQuery.of(context).padding.bottom + AppDimensions.sm,
             top: AppDimensions.md,
           ),
           decoration: BoxDecoration(
-            color: Theme.of(context).scaffoldBackgroundColor,
+            color: AppColors.surface,
             boxShadow: [
               BoxShadow(
-                color: AppColors.black.withValues(alpha: 0.05),
-                blurRadius: 10,
-                offset: const Offset(0, -2),
+                color: AppColors.black.withValues(alpha: 0.06),
+                blurRadius: 12,
+                offset: const Offset(0, -3),
               ),
             ],
           ),
-          child: SizedBox(
-            width: double.infinity,
-            height: AppDimensions.buttonHeight,
-            child: ElevatedButton(
-              onPressed: _showApplySheet,
-              child: const Text('Apply Now'),
-            ),
+          child: Row(
+            children: [
+              // Chat icon button
+              Container(
+                height: AppDimensions.buttonHeight,
+                width: AppDimensions.buttonHeight,
+                decoration: BoxDecoration(
+                  border: Border.all(color: AppColors.primary),
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.buttonRadius),
+                ),
+                child: IconButton(
+                  onPressed: () {
+                    // Chat navigation handled by existing routing
+                  },
+                  icon: const Icon(Icons.chat_bubble_outline,
+                      color: AppColors.primary),
+                ),
+              ),
+              const SizedBox(width: AppDimensions.md),
+              // Apply Now button
+              Expanded(
+                child: SizedBox(
+                  height: AppDimensions.buttonHeight,
+                  child: ElevatedButton(
+                    onPressed: _showApplySheet,
+                    child: const Text('Apply Now'),
+                  ),
+                ),
+              ),
+            ],
           ),
         );
       }),
@@ -213,68 +262,211 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
     final urgency = job['urgency'] ?? 'normal';
     final location = job['location_text'] ?? '';
     final createdAt = DateTime.tryParse(job['created_at'] ?? '');
-    final expiresAt = DateTime.tryParse(job['expires_at'] ?? '');
     final images = List<String>.from(job['images'] ?? []);
     final client = job['client'] as Map<String, dynamic>?;
+    final skills = List<String>.from(job['required_skills'] ?? []);
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.screenPadding),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          // Title and urgency
+          // -- Client info section --
+          if (client != null) ...[
+            AppCard(
+              child: Row(
+                children: [
+                  AppAvatar(
+                    imageUrl: client['avatar_url'],
+                    name: client['full_name'],
+                    size: AppDimensions.avatarLg,
+                  ),
+                  const SizedBox(width: AppDimensions.md),
+                  Expanded(
+                    child: Column(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Text(
+                          client['full_name'] ?? 'Client',
+                          style: AppTextStyles.labelLarge,
+                        ),
+                        const SizedBox(height: 4),
+                        if (client['is_verified'] == true)
+                          Row(
+                            children: [
+                              Icon(Icons.verified,
+                                  size: 14, color: AppColors.primary),
+                              const SizedBox(width: 4),
+                              Text(
+                                'VERIFIED CLIENT',
+                                style: TextStyle(
+                                  fontSize: 10,
+                                  fontWeight: FontWeight.w700,
+                                  color: AppColors.primary,
+                                  letterSpacing: 0.5,
+                                ),
+                              ),
+                            ],
+                          ),
+                        if (client['created_at'] != null) ...[
+                          const SizedBox(height: 4),
+                          Text(
+                            'Member since ${_formatMemberSince(DateTime.tryParse(client['created_at']))}',
+                            style: AppTextStyles.caption,
+                          ),
+                        ],
+                      ],
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+          ],
+
+          // -- Urgency + Category badges row --
           Row(
-            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              AppStatusBadge.urgency(urgency),
+              if (category.isNotEmpty) ...[
+                const SizedBox(width: AppDimensions.sm),
+                Container(
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusFull),
+                  ),
+                  child: Text(
+                    category,
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.primary,
+                      fontWeight: FontWeight.w600,
+                    ),
+                  ),
+                ),
+              ],
+            ],
+          ),
+          const SizedBox(height: AppDimensions.md),
+
+          // -- Job title (large) --
+          Text(title, style: AppTextStyles.h2),
+          const SizedBox(height: AppDimensions.md),
+
+          // -- Budget + Location info cards side-by-side --
+          Row(
             children: [
               Expanded(
-                child: Text(title, style: AppTextStyles.h3),
+                child: AppCard(
+                  padding: const EdgeInsets.all(AppDimensions.sm + 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(
+                                  AppDimensions.radiusSm),
+                            ),
+                            child: const Icon(
+                              Icons.account_balance_wallet_outlined,
+                              color: AppColors.primary,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppDimensions.sm),
+                          Text('Budget', style: AppTextStyles.caption),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.sm),
+                      Text(
+                        '${AppConstants.currencySymbol}${budgetMin.toStringAsFixed(0)} - ${AppConstants.currencySymbol}${budgetMax.toStringAsFixed(0)}',
+                        style: AppTextStyles.priceSmall,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
               ),
               const SizedBox(width: AppDimensions.sm),
-              AppStatusBadge.urgency(urgency),
+              Expanded(
+                child: AppCard(
+                  padding: const EdgeInsets.all(AppDimensions.sm + 4),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Row(
+                        children: [
+                          Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.info.withValues(alpha: 0.1),
+                              borderRadius: BorderRadius.circular(
+                                  AppDimensions.radiusSm),
+                            ),
+                            child: const Icon(
+                              Icons.location_on_outlined,
+                              color: AppColors.info,
+                              size: 18,
+                            ),
+                          ),
+                          const SizedBox(width: AppDimensions.sm),
+                          Text('Location', style: AppTextStyles.caption),
+                        ],
+                      ),
+                      const SizedBox(height: AppDimensions.sm),
+                      Text(
+                        location.isNotEmpty ? location : 'Not specified',
+                        style: AppTextStyles.labelMedium,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+                  ),
+                ),
+              ),
             ],
           ),
           const SizedBox(height: AppDimensions.sm),
 
-          // Category
-          if (category.isNotEmpty)
-            Container(
-              margin: const EdgeInsets.only(bottom: AppDimensions.md),
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
-              decoration: BoxDecoration(
-                color: AppColors.primary.withValues(alpha: 0.1),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-              ),
-              child: Text(
-                category,
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: AppColors.primary,
-                ),
-              ),
-            ),
-
-          // Budget
-          AppCard(
-            child: Row(
-              children: [
-                const Icon(Icons.account_balance_wallet_outlined,
-                    color: AppColors.primary),
-                const SizedBox(width: AppDimensions.sm),
-                Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    const Text('Budget Range', style: AppTextStyles.caption),
-                    Text(
-                      '${AppConstants.currencySymbol}${budgetMin.toStringAsFixed(0)} - ${AppConstants.currencySymbol}${budgetMax.toStringAsFixed(0)}',
-                      style: AppTextStyles.price,
+          // -- Posted time + location text --
+          if (createdAt != null)
+            Padding(
+              padding: const EdgeInsets.only(bottom: AppDimensions.md),
+              child: Row(
+                children: [
+                  Icon(Icons.access_time,
+                      size: 14, color: AppColors.textHint),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Posted ${_timeAgo(createdAt)}',
+                    style: AppTextStyles.caption,
+                  ),
+                  if (location.isNotEmpty) ...[
+                    const SizedBox(width: AppDimensions.md),
+                    Icon(Icons.location_on_outlined,
+                        size: 14, color: AppColors.textHint),
+                    const SizedBox(width: 2),
+                    Flexible(
+                      child: Text(
+                        location,
+                        style: AppTextStyles.caption,
+                        maxLines: 1,
+                        overflow: TextOverflow.ellipsis,
+                      ),
                     ),
                   ],
-                ),
-              ],
+                ],
+              ),
             ),
-          ),
-          const SizedBox(height: AppDimensions.md),
 
-          // Images
+          // -- Images --
           if (images.isNotEmpty) ...[
             SizedBox(
               height: 200,
@@ -297,87 +489,58 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                 },
               ),
             ),
-            const SizedBox(height: AppDimensions.md),
+            const SizedBox(height: AppDimensions.lg),
           ],
 
-          // Description
-          const Text('Description', style: AppTextStyles.h4),
+          // -- Job Description section --
+          Text(
+            'JOB DESCRIPTION',
+            style: AppTextStyles.sectionHeader,
+          ),
           const SizedBox(height: AppDimensions.sm),
           Text(
             description.isNotEmpty ? description : 'No description provided.',
-            style: AppTextStyles.bodyMedium,
-          ),
-          const SizedBox(height: AppDimensions.lg),
-
-          // Details
-          const Text('Details', style: AppTextStyles.h4),
-          const SizedBox(height: AppDimensions.sm),
-          AppCard(
-            child: Column(
-              children: [
-                if (location.isNotEmpty)
-                  _DetailRow(
-                    icon: Icons.location_on_outlined,
-                    label: 'Location',
-                    value: location,
-                  ),
-                if (createdAt != null)
-                  _DetailRow(
-                    icon: Icons.calendar_today_outlined,
-                    label: 'Posted',
-                    value: _formatDate(createdAt),
-                  ),
-                if (expiresAt != null)
-                  _DetailRow(
-                    icon: Icons.timer_outlined,
-                    label: 'Expires',
-                    value: _formatDate(expiresAt),
-                    isLast: true,
-                  ),
-              ],
+            style: AppTextStyles.bodyMedium.copyWith(
+              color: AppColors.textSecondary,
+              height: 1.6,
             ),
           ),
           const SizedBox(height: AppDimensions.lg),
 
-          // Client info
-          if (client != null) ...[
-            const Text('Posted By', style: AppTextStyles.h4),
+          // -- Required Skills section --
+          if (skills.isNotEmpty) ...[
+            Text(
+              'REQUIRED SKILLS',
+              style: AppTextStyles.sectionHeader,
+            ),
             const SizedBox(height: AppDimensions.sm),
-            AppCard(
-              child: Row(
-                children: [
-                  AppAvatar(
-                    imageUrl: client['avatar_url'],
-                    name: client['full_name'],
-                    size: AppDimensions.avatarLg,
-                  ),
-                  const SizedBox(width: AppDimensions.md),
-                  Expanded(
-                    child: Column(
-                      crossAxisAlignment: CrossAxisAlignment.start,
-                      children: [
-                        Text(
-                          client['full_name'] ?? 'Client',
-                          style: AppTextStyles.labelLarge,
-                        ),
-                        const SizedBox(height: 4),
-                        if (client['created_at'] != null)
-                          Text(
-                            'Member since ${_formatMemberSince(DateTime.tryParse(client['created_at']))}',
-                            style: AppTextStyles.bodySmall,
-                          ),
-                      ],
-                    ),
-                  ),
-                ],
-              ),
+            Wrap(
+              spacing: AppDimensions.sm,
+              runSpacing: AppDimensions.sm,
+              children: skills
+                  .map((skill) => AppChip(
+                        label: skill,
+                        isSelected: true,
+                      ))
+                  .toList(),
             ),
+            const SizedBox(height: AppDimensions.lg),
           ],
+
           // Extra padding for bottom button
           const SizedBox(height: AppDimensions.xxl),
         ],
       ),
     );
+  }
+
+  String _timeAgo(DateTime dateTime) {
+    final diff = DateTime.now().difference(dateTime);
+    if (diff.inMinutes < 60) return '${diff.inMinutes}m ago';
+    if (diff.inHours < 24) return '${diff.inHours}h ago';
+    if (diff.inDays < 7) return '${diff.inDays}d ago';
+    if (diff.inDays < 30) return '${(diff.inDays / 7).floor()}w ago';
+    return _formatDate(dateTime);
   }
 
   String _formatDate(DateTime date) {
@@ -395,46 +558,5 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.year}';
-  }
-}
-
-class _DetailRow extends StatelessWidget {
-  final IconData icon;
-  final String label;
-  final String value;
-  final bool isLast;
-
-  const _DetailRow({
-    required this.icon,
-    required this.label,
-    required this.value,
-    this.isLast = false,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Padding(
-          padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
-          child: Row(
-            children: [
-              Icon(icon, size: 20, color: AppColors.textSecondary),
-              const SizedBox(width: AppDimensions.sm),
-              Text(label, style: AppTextStyles.bodySmall),
-              const Spacer(),
-              Flexible(
-                child: Text(
-                  value,
-                  style: AppTextStyles.labelMedium,
-                  textAlign: TextAlign.end,
-                ),
-              ),
-            ],
-          ),
-        ),
-        if (!isLast) const Divider(height: 1),
-      ],
-    );
   }
 }

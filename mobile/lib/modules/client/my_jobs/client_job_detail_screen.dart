@@ -1,9 +1,11 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/application_controller.dart';
+import '../../../data/repositories/skill_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -15,6 +17,7 @@ import '../../../widgets/common/app_status_badge.dart';
 import '../../../widgets/common/app_shimmer.dart';
 import '../../../widgets/common/app_empty_state.dart';
 import '../../../widgets/common/app_snackbar.dart';
+
 
 class ClientJobDetailScreen extends StatefulWidget {
   final String jobId;
@@ -28,11 +31,14 @@ class ClientJobDetailScreen extends StatefulWidget {
 class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
   final _jobController = Get.find<JobController>();
   final _applicationController = Get.find<ApplicationController>();
+  List<String> _resolvedSkillNames = [];
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -40,14 +46,50 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
       _jobController.loadJobDetail(widget.jobId),
       _applicationController.loadJobApplications(widget.jobId),
     ]);
+    // Resolve skill IDs to names
+    final skillIds = _jobController.currentJob['skill_ids'] as List?;
+    if (skillIds != null && skillIds.isNotEmpty) {
+      final ids = skillIds.map((e) => e.toString()).toList();
+      final names = await Get.find<SkillRepository>().getSkillNamesByIds(ids);
+      if (mounted) setState(() => _resolvedSkillNames = names);
+    }
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Job Details'),
+        title: const Text('Job Details', style: AppTextStyles.h4),
+        centerTitle: true,
+        backgroundColor: AppColors.white,
+        elevation: 0,
+        scrolledUnderElevation: 0.5,
+        leading: Navigator.of(context).canPop()
+            ? null
+            : IconButton(
+                icon: const Icon(Icons.home_outlined),
+                onPressed: () => context.go(AppRoutes.clientDashboard),
+              ),
         actions: [
+          IconButton(
+            icon: const Icon(Icons.share_outlined, color: AppColors.textPrimary),
+            onPressed: () {
+              final job = _jobController.currentJob;
+              final title = job['title'] ?? 'Job';
+              final category = (job['categories'] as Map<String, dynamic>?)?['name'] ?? '';
+              final budgetMin = job['budget_min'];
+              final budgetMax = job['budget_max'];
+              final budget = budgetMin != null && budgetMax != null
+                  ? '${AppConstants.currencySymbol}$budgetMin - ${AppConstants.currencySymbol}$budgetMax'
+                  : 'Not specified';
+              final shareText = 'Check out this job on HandymenSkills!\n\n'
+                  'Title: $title\n'
+                  'Category: $category\n'
+                  'Budget: $budget';
+              Clipboard.setData(ClipboardData(text: shareText));
+              AppSnackbar.success('Job details copied to clipboard');
+            },
+          ),
           Obx(() {
             final job = _jobController.currentJob;
             final status = job['status']?.toString();
@@ -203,23 +245,21 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
 
   Widget _buildJobDescription(Map<String, dynamic> job) {
     final description = job['description']?.toString() ?? '';
-    final skills = job['required_skills'] as List? ?? [];
-
     return AppCard(
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Description', style: AppTextStyles.labelLarge),
+          const Text('DESCRIPTION', style: AppTextStyles.sectionHeader),
           const SizedBox(height: AppDimensions.sm),
           Text(description, style: AppTextStyles.bodyMedium),
-          if (skills.isNotEmpty) ...[
+          if (_resolvedSkillNames.isNotEmpty) ...[
             const SizedBox(height: AppDimensions.md),
-            const Text('Required Skills', style: AppTextStyles.labelLarge),
+            const Text('REQUIRED SKILLS', style: AppTextStyles.sectionHeader),
             const SizedBox(height: AppDimensions.sm),
             Wrap(
               spacing: 6,
               runSpacing: 6,
-              children: skills.map<Widget>((s) => Container(
+              children: _resolvedSkillNames.map<Widget>((s) => Container(
                 padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
                 decoration: BoxDecoration(
                   color: AppColors.primary.withValues(alpha: 0.08),
@@ -251,7 +291,7 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Details', style: AppTextStyles.labelLarge),
+          const Text('DETAILS', style: AppTextStyles.sectionHeader),
           const SizedBox(height: AppDimensions.sm),
           _DetailRow(
             icon: Icons.calendar_today,
@@ -295,7 +335,7 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          const Text('Location', style: AppTextStyles.labelLarge),
+          const Text('LOCATION', style: AppTextStyles.sectionHeader),
           const SizedBox(height: AppDimensions.sm),
           Row(
             children: [
@@ -364,7 +404,7 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
                   final workerId = application['worker_id']?.toString() ??
                       application['profiles']?['id']?.toString() ?? '';
                   if (workerId.isNotEmpty) {
-                    context.push('/client/workers/$workerId');
+                    context.push(AppRoutes.clientWorkerProfile.replaceFirst(':id', workerId));
                   }
                 },
               );
@@ -438,7 +478,9 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
   void _handleMenuAction(String action) {
     switch (action) {
       case 'edit':
-        AppSnackbar.info('Edit job coming soon');
+        context.push(
+          AppRoutes.clientEditJob.replaceFirst(':id', widget.jobId),
+        );
         break;
       case 'delete':
         _confirmDelete();
@@ -469,8 +511,8 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
     );
 
     if (confirmed == true && mounted) {
-      await _jobController.deleteJob(widget.jobId);
-      if (mounted) context.pop();
+      final deleted = await _jobController.deleteJob(widget.jobId);
+      if (deleted && mounted) context.pop();
     }
   }
 

@@ -1,7 +1,9 @@
+import 'dart:convert';
 import 'dart:math';
 
 import 'package:flutter/material.dart';
 import 'package:flutter_paystack_plus/flutter_paystack_plus.dart';
+import 'package:http/http.dart' as http;
 
 import '../../config/constants.dart';
 
@@ -29,27 +31,13 @@ class PaymentResponse {
 
 /// Service for processing payments through Paystack.
 ///
-/// Uses [FlutterPaystackPlus] which opens a WebView-based checkout page.
-/// All amounts are expected in **kobo** (i.e. Naira * 100).
+/// Initializes a transaction via the Paystack API, then opens the SDK popup
+/// with the authorization URL. All amounts are expected in **kobo**.
 class PaystackService {
   final _random = Random();
+  static const _callbackUrl = 'https://handymenskills.ng/payment/callback';
 
-  // ---------------------------------------------------------------------------
-  // Checkout
-  // ---------------------------------------------------------------------------
-
-  /// Opens the Paystack checkout popup and waits for the user to complete or
-  /// cancel the payment.
-  ///
-  /// [context]      -- the build context required for the WebView overlay.
-  /// [email]        -- the customer's email address.
-  /// [amountInKobo] -- the charge amount in kobo (e.g. 5000 = NGN 50).
-  /// [reference]    -- a unique transaction reference. Generate one with
-  ///                   [generateReference] if you don't already have one.
-  /// [metadata]     -- optional key-value pairs attached to the transaction on
-  ///                   the Paystack dashboard.
-  ///
-  /// Returns a [PaymentResponse] indicating success or cancellation.
+  /// Opens the Paystack checkout and waits for the user to complete or cancel.
   Future<PaymentResponse> checkout({
     required BuildContext context,
     required String email,
@@ -57,25 +45,45 @@ class PaystackService {
     required String reference,
     Map<String, dynamic>? metadata,
   }) async {
+    // Step 1: Initialize transaction via Paystack API to get authorization URL
+    final authUrl = await _initializeTransaction(
+      email: email,
+      amountInKobo: amountInKobo,
+      reference: reference,
+      metadata: metadata,
+    );
+
+    if (authUrl == null) {
+      return PaymentResponse(
+        success: false,
+        reference: reference,
+        message: 'Failed to initialize payment',
+      );
+    }
+
+    // Step 2: Open the SDK with the authorization URL (no secretKey = no
+    // internal verification hang — onSuccess fires immediately on redirect)
     PaymentResponse? result;
 
-    await FlutterPaystackPlus().checkout(
+    await FlutterPaystackPlus.openPaystackPopup(
       context: context,
       publicKey: AppConstants.paystackPublicKey,
-      secretKey: '',
+      customerEmail: email,
       amount: amountInKobo.toString(),
-      email: email,
-      ref: reference,
-      callBackUrl: '',
-      onSuccess: (response) {
+      reference: reference,
+      currency: 'NGN',
+      callBackUrl: _callbackUrl,
+      authorizationUrl: authUrl,
+      metadata: metadata,
+      onSuccess: () {
         result = PaymentResponse(
           success: true,
           reference: reference,
           message: 'Payment completed successfully',
         );
       },
-      onCancelled: () {
-        result = PaymentResponse(
+      onClosed: () {
+        result ??= PaymentResponse(
           success: false,
           reference: reference,
           message: 'Payment was cancelled by the user',
@@ -83,7 +91,6 @@ class PaystackService {
       },
     );
 
-    // If the callback was never invoked (edge case), treat it as a failure.
     return result ??
         PaymentResponse(
           success: false,
@@ -92,18 +99,47 @@ class PaystackService {
         );
   }
 
-  // ---------------------------------------------------------------------------
-  // Reference generation
-  // ---------------------------------------------------------------------------
+  /// Calls Paystack's /transaction/initialize endpoint and returns the
+  /// authorization URL, or null on failure.
+  Future<String?> _initializeTransaction({
+    required String email,
+    required int amountInKobo,
+    required String reference,
+    Map<String, dynamic>? metadata,
+  }) async {
+    try {
+      final response = await http.post(
+        Uri.parse('https://api.paystack.co/transaction/initialize'),
+        headers: {
+          'Content-Type': 'application/json',
+          'Authorization': 'Bearer ${AppConstants.paystackSecretKey}',
+        },
+        body: jsonEncode({
+          'email': email,
+          'amount': amountInKobo.toString(),
+          'reference': reference,
+          'currency': 'NGN',
+          'callback_url': _callbackUrl,
+          'metadata': metadata,
+        }),
+      );
+
+      if (response.statusCode == 200) {
+        final body = jsonDecode(response.body);
+        if (body['status'] == true) {
+          return body['data']['authorization_url'] as String?;
+        }
+      }
+      return null;
+    } catch (_) {
+      return null;
+    }
+  }
 
   /// Generates a unique payment reference string.
-  ///
-  /// Format: `ART_<epoch_millis>_<random_6_digits>`
-  ///
-  /// Example: `ART_1709472000000_839271`
   String generateReference() {
     final timestamp = DateTime.now().millisecondsSinceEpoch;
-    final randomSuffix = _random.nextInt(900000) + 100000; // 6-digit number
+    final randomSuffix = _random.nextInt(900000) + 100000;
     return 'ART_${timestamp}_$randomSuffix';
   }
 }

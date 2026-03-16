@@ -13,7 +13,7 @@ class ArtisanApp extends StatelessWidget {
     final themeController = Get.find<ThemeController>();
 
     return GetMaterialApp.router(
-      title: 'Artisan Marketplace',
+      title: 'Handymenskills',
       debugShowCheckedModeBanner: false,
       theme: AppTheme.lightTheme,
       darkTheme: AppTheme.darkTheme,

@@ -26,9 +26,9 @@ class NotificationService {
   /// The Android notification channel used for all local notifications.
   static const AndroidNotificationChannel _androidChannel =
       AndroidNotificationChannel(
-    'artisan_marketplace',
-    'Artisan Marketplace',
-    description: 'Notifications for Artisan Marketplace',
+    'handymenskills',
+    'Handymenskills',
+    description: 'Notifications for Handymenskills',
     importance: Importance.high,
   );
 
@@ -112,7 +112,7 @@ class NotificationService {
     if (notification == null) return;
 
     showLocalNotification(
-      notification.title ?? 'Artisan Marketplace',
+      notification.title ?? 'Handymenskills',
       notification.body ?? '',
       data: message.data,
     );

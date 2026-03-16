@@ -1,6 +1,6 @@
 "use client";
 
-import { useState } from "react";
+import { Suspense, useState } from "react";
 import { useRouter, useSearchParams } from "next/navigation";
 import { createClient } from "@/lib/supabase/client";
 import { Button } from "@/components/ui/button";
@@ -9,7 +9,7 @@ import { Label } from "@/components/ui/label";
 import { Card, CardContent, CardDescription, CardHeader, CardTitle } from "@/components/ui/card";
 import { Loader2 } from "lucide-react";
 
-export default function LoginPage() {
+function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
   const [email, setEmail] = useState("");
@@ -69,7 +69,7 @@ export default function LoginPage() {
   return (
     <Card>
       <CardHeader className="text-center">
-        <CardTitle className="text-2xl">Artisan Marketplace</CardTitle>
+        <CardTitle className="text-2xl">Handymenskills</CardTitle>
         <CardDescription>Sign in to the admin dashboard</CardDescription>
       </CardHeader>
       <CardContent>
@@ -113,5 +113,25 @@ export default function LoginPage() {
         </form>
       </CardContent>
     </Card>
+  );
+}
+
+export default function LoginPage() {
+  return (
+    <Suspense fallback={
+      <Card>
+        <CardHeader className="text-center">
+          <CardTitle className="text-2xl">Handymenskills</CardTitle>
+          <CardDescription>Sign in to the admin dashboard</CardDescription>
+        </CardHeader>
+        <CardContent>
+          <div className="flex justify-center py-8">
+            <Loader2 className="h-6 w-6 animate-spin text-muted-foreground" />
+          </div>
+        </CardContent>
+      </Card>
+    }>
+      <LoginForm />
+    </Suspense>
   );
 }

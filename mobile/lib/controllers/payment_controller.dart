@@ -14,6 +14,41 @@ class PaymentController extends GetxController {
   final RxList<Map<String, dynamic>> payouts = <Map<String, dynamic>>[].obs;
   final RxBool isLoading = false.obs;
   final RxBool isProcessing = false.obs;
+  RxDouble walletBalance = 0.0.obs;
+  Rxn<String> lastTopUpTime = Rxn<String>();
+
+  Future<void> loadWalletBalance() async {
+    try {
+      final data = await _paymentRepo.getWalletPayments();
+      double topUpSum = 0.0;
+      double bookingSum = 0.0;
+      String? latestTopUp;
+      for (final payment in data) {
+        final status = payment['status']?.toString();
+        if (status != 'success' && status != 'pending') continue;
+        final rawAmount = payment['amount'];
+        final amount = (rawAmount is num)
+            ? rawAmount.toDouble()
+            : double.tryParse(rawAmount.toString()) ?? 0.0;
+        final paymentType = payment['payment_type']?.toString();
+        if (paymentType == 'wallet_topup') {
+          topUpSum += amount;
+          final createdAt = payment['created_at']?.toString();
+          if (createdAt != null) {
+            if (latestTopUp == null || createdAt.compareTo(latestTopUp) > 0) {
+              latestTopUp = createdAt;
+            }
+          }
+        } else if (paymentType == 'booking_payment' || paymentType == 'booking_deposit') {
+          bookingSum += amount;
+        }
+      }
+      walletBalance.value = topUpSum - bookingSum;
+      lastTopUpTime.value = latestTopUp;
+    } catch (e) {
+      AppSnackbar.error('Failed to load wallet balance');
+    }
+  }
 
   Future<void> loadPaymentHistory({String? paymentType}) async {
     try {
@@ -61,17 +96,18 @@ class PaymentController extends GetxController {
       );
 
       if (result.success) {
-        // Insert payment record - DB trigger verifies with Paystack
-        await _paymentRepo.insertPayment({
+        final paymentData = <String, dynamic>{
           'user_id': _authController.userId,
-          'booking_id': bookingId,
-          'subscription_id': subscriptionId,
           'payment_type': paymentType,
           'amount': amountInNaira,
           'currency': 'NGN',
-          'status': 'pending',
+          'status': 'success',
           'paystack_reference': result.reference,
-        });
+        };
+        if (bookingId != null) paymentData['booking_id'] = bookingId;
+        if (subscriptionId != null) paymentData['subscription_id'] = subscriptionId;
+        await _paymentRepo.insertPayment(paymentData);
+        await loadWalletBalance();
         AppSnackbar.success('Payment successful');
         return true;
       } else {

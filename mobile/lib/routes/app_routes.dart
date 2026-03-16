@@ -3,7 +3,6 @@ class AppRoutes {
   static const splash = '/splash';
   static const onboarding = '/onboarding';
   static const login = '/login';
-  static const otp = '/otp';
   static const register = '/register';
   static const roleSelection = '/role-selection';
   static const forgotPassword = '/forgot-password';
@@ -37,6 +36,7 @@ class AppRoutes {
   static const clientJobApplications = '/client/my-jobs/:id/applications';
   static const clientBookings = '/client/bookings';
   static const clientBookingDetail = '/client/bookings/:id';
+  static const clientJobPostedSuccess = '/client/job-posted-success';
 
   // Shared
   static const chat = '/chat';
@@ -48,7 +48,6 @@ class AppRoutes {
   static const about = '/settings/about';
   static const reviews = '/reviews/:userId';
   static const writeReview = '/reviews/write/:bookingId';
-  static const mapView = '/map';
   static const favorites = '/favorites';
   static const reportUser = '/report/:userId';
   static const disputes = '/disputes';

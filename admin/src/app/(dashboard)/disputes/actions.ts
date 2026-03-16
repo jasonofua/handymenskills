@@ -20,19 +20,19 @@ export async function resolveDispute(
 
   const { data: current } = await admin
     .from("disputes")
-    .select("dispute_status, booking_id")
+    .select("status, booking_id")
     .eq("id", disputeId)
     .single();
 
   if (!current) return { error: "Dispute not found" };
-  if (!["open", "under_review"].includes(current.dispute_status)) {
+  if (!["open", "under_review"].includes(current.status)) {
     return { error: "Dispute is already resolved" };
   }
 
   const { error } = await admin
     .from("disputes")
     .update({
-      dispute_status: resolution,
+      status: resolution,
       resolution_notes: notes,
       resolved_by: user.id,
       resolved_at: new Date().toISOString(),
@@ -46,7 +46,7 @@ export async function resolveDispute(
   if (current.booking_id) {
     await admin
       .from("bookings")
-      .update({ booking_status: "completed" })
+      .update({ status: "completed" })
       .eq("id", current.booking_id);
   }
 
@@ -55,8 +55,8 @@ export async function resolveDispute(
     action: `dispute_${resolution}`,
     entity_type: "disputes",
     entity_id: disputeId,
-    old_data: { dispute_status: current.dispute_status },
-    new_data: { dispute_status: resolution, notes, refund_amount: refundAmount },
+    old_data: { status: current.status },
+    new_data: { status: resolution, notes, refund_amount: refundAmount },
   });
 
   revalidatePath("/disputes");

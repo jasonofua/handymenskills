@@ -86,7 +86,7 @@ export default async function WorkerDetailPage({ params }: Props) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Experience</span>
-                <span className="font-medium">{worker.years_of_experience || 0} years</span>
+                <span className="font-medium">{worker.experience_years || 0} years</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Hourly Rate</span>

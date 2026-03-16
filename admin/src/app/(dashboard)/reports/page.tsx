@@ -24,7 +24,7 @@ export default async function ReportsPage({ searchParams }: Props) {
     .order("created_at", { ascending: false })
     .range(offset, offset + DEFAULT_PAGE_SIZE - 1);
 
-  if (status) query = query.eq("report_status", status);
+  if (status) query = query.eq("status", status);
 
   const { data: reports, count } = await query;
 

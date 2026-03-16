@@ -2,21 +2,21 @@ import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
+import '../../../routes/app_routes.dart';
 import '../../../data/repositories/worker_repository.dart';
 import '../../../data/repositories/skill_repository.dart';
-import '../../../controllers/location_controller.dart';
-import '../../../routes/app_routes.dart';
+import '../../../controllers/notification_controller.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_avatar.dart';
-import '../../../widgets/common/app_search_bar.dart';
 import '../../../widgets/common/app_chip.dart';
 import '../../../widgets/common/app_shimmer.dart';
 import '../../../widgets/common/app_empty_state.dart';
 import '../../../widgets/common/app_error_widget.dart';
 import '../../../widgets/common/app_snackbar.dart';
+import '../../../widgets/common/app_badge.dart';
 
 class FindWorkersScreen extends StatefulWidget {
   const FindWorkersScreen({super.key});
@@ -28,26 +28,38 @@ class FindWorkersScreen extends StatefulWidget {
 class _FindWorkersScreenState extends State<FindWorkersScreen> {
   final _workerRepo = Get.find<WorkerRepository>();
   final _skillRepo = Get.find<SkillRepository>();
+  final _notificationController = Get.find<NotificationController>();
 
   final RxList<Map<String, dynamic>> _workers = <Map<String, dynamic>>[].obs;
-  final RxList<Map<String, dynamic>> _categories = <Map<String, dynamic>>[].obs;
+  final RxList<Map<String, dynamic>> _categories =
+      <Map<String, dynamic>>[].obs;
   final RxBool _isLoading = false.obs;
   final RxBool _hasError = false.obs;
   final RxString _selectedCategoryId = ''.obs;
-  String _searchQuery = '';
+  final _searchController = TextEditingController();
 
   @override
   void initState() {
     super.initState();
-    _loadCategories();
-    _searchWorkers();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadCategories();
+      _searchWorkers();
+    });
+  }
+
+  @override
+  void dispose() {
+    _searchController.dispose();
+    super.dispose();
   }
 
   Future<void> _loadCategories() async {
     try {
       final data = await _skillRepo.getCategories();
       _categories.assignAll(data);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('FindWorkersScreen: Failed to load categories: $e');
+    }
   }
 
   Future<void> _searchWorkers() async {
@@ -55,26 +67,8 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
       _isLoading.value = true;
       _hasError.value = false;
 
-      // Try to use location for proximity search
-      double lat = 6.5244; // Lagos default
-      double lng = 3.3792;
-
-      try {
-        final locationController = Get.find<LocationController>();
-        final position = locationController.currentPosition;
-        if (position != null) {
-          lat = position.latitude;
-          lng = position.longitude;
-        }
-      } catch (_) {
-        // Location not available; use defaults
-      }
-
-      final data = await _workerRepo.searchWorkersNearby(
-        lat,
-        lng,
-        100,
-        skillId: _selectedCategoryId.value.isNotEmpty
+      final data = await _workerRepo.searchWorkersByLocation(
+        categoryId: _selectedCategoryId.value.isNotEmpty
             ? _selectedCategoryId.value
             : null,
       );
@@ -90,31 +84,102 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: const Text('Find Workers'),
+      body: SafeArea(
+        child: Column(
+          children: [
+            _buildHeader(),
+            _buildSearchBar(),
+            const SizedBox(height: AppDimensions.sm),
+            _buildCategoryChips(),
+            const SizedBox(height: AppDimensions.sm),
+            _buildSectionTitle(),
+            Expanded(child: _buildWorkerList()),
+          ],
+        ),
       ),
-      body: Column(
+    );
+  }
+
+  Widget _buildHeader() {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimensions.screenPadding,
+        AppDimensions.md,
+        AppDimensions.screenPadding,
+        AppDimensions.sm,
+      ),
+      child: Row(
         children: [
-          Padding(
-            padding: const EdgeInsets.fromLTRB(
-              AppDimensions.screenPadding,
-              AppDimensions.sm,
-              AppDimensions.screenPadding,
-              0,
-            ),
-            child: AppSearchBar(
-              hint: 'Search workers by name or skill...',
-              onSearch: (query) {
-                _searchQuery = query;
-                _searchWorkers();
-              },
-              onFilterTap: () => _showFilterSheet(context),
+          const Icon(Icons.construction, color: AppColors.primary, size: 28),
+          const SizedBox(width: 8),
+          Text(
+            'HandySkills',
+            style: AppTextStyles.h3.copyWith(color: AppColors.primary),
+          ),
+          const Spacer(),
+          Obx(() => IconButton(
+                onPressed: () => context.push(AppRoutes.notifications),
+                icon: AppBadge(
+                  count: _notificationController.unreadCount.value,
+                  child:
+                      const Icon(Icons.notifications_outlined, size: 28),
+                ),
+              )),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildSearchBar() {
+    return Padding(
+      padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.screenPadding),
+      child: Row(
+        children: [
+          Expanded(
+            child: Container(
+              height: 48,
+              decoration: BoxDecoration(
+                color: AppColors.white,
+                borderRadius:
+                    BorderRadius.circular(AppDimensions.inputRadius),
+                border: Border.all(color: AppColors.border),
+              ),
+              child: Row(
+                children: [
+                  const SizedBox(width: 12),
+                  const Icon(Icons.search,
+                      color: AppColors.textHint, size: 22),
+                  const SizedBox(width: 8),
+                  Expanded(
+                    child: TextField(
+                      controller: _searchController,
+                      decoration: const InputDecoration(
+                        hintText: 'Search for skills (e.g. plumbing)',
+                        border: InputBorder.none,
+                        enabledBorder: InputBorder.none,
+                        focusedBorder: InputBorder.none,
+                        contentPadding: EdgeInsets.zero,
+                        isDense: true,
+                      ),
+                      style: AppTextStyles.bodyMedium,
+                    ),
+                  ),
+                ],
+              ),
             ),
           ),
-          const SizedBox(height: AppDimensions.sm),
-          _buildCategoryChips(),
-          const SizedBox(height: AppDimensions.sm),
-          Expanded(child: _buildWorkerList()),
+          const SizedBox(width: AppDimensions.sm),
+          Container(
+            width: 48,
+            height: 48,
+            decoration: BoxDecoration(
+              color: AppColors.primary,
+              borderRadius:
+                  BorderRadius.circular(AppDimensions.inputRadius),
+            ),
+            child: const Icon(Icons.tune, color: AppColors.white),
+          ),
         ],
       ),
     );
@@ -136,7 +201,7 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
           itemBuilder: (_, index) {
             if (index == 0) {
               return AppChip(
-                label: 'All',
+                label: 'All Workers',
                 isSelected: _selectedCategoryId.value.isEmpty,
                 onTap: () {
                   _selectedCategoryId.value = '';
@@ -159,6 +224,26 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
         ),
       );
     });
+  }
+
+  Widget _buildSectionTitle() {
+    return Obx(() => Padding(
+          padding: const EdgeInsets.symmetric(
+              horizontal: AppDimensions.screenPadding),
+          child: Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              const Text('Top Recommended', style: AppTextStyles.h4),
+              Text(
+                '${_workers.length} workers nearby',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
+            ],
+          ),
+        ));
   }
 
   Widget _buildWorkerList() {
@@ -185,7 +270,7 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
         return const AppEmptyState(
           icon: Icons.person_search_outlined,
           title: 'No workers found',
-          subtitle: 'Try adjusting your search or filters.',
+          subtitle: 'Try selecting a different category.',
         );
       }
 
@@ -202,9 +287,11 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
               worker: worker,
               onTap: () {
                 final id = worker['user_id']?.toString() ??
-                    worker['id']?.toString() ?? '';
+                    worker['id']?.toString() ??
+                    '';
                 if (id.isNotEmpty) {
-                  context.push('/client/workers/$id');
+                  context.push(AppRoutes.clientWorkerProfile
+                      .replaceFirst(':id', id));
                 }
               },
             );
@@ -212,22 +299,6 @@ class _FindWorkersScreenState extends State<FindWorkersScreen> {
         ),
       );
     });
-  }
-
-  void _showFilterSheet(BuildContext context) {
-    showModalBottomSheet(
-      context: context,
-      isScrollControlled: true,
-      backgroundColor: Colors.transparent,
-      builder: (_) => _FilterSheet(
-        categories: _categories,
-        selectedCategoryId: _selectedCategoryId.value,
-        onApply: (categoryId) {
-          _selectedCategoryId.value = categoryId ?? '';
-          _searchWorkers();
-        },
-      ),
-    );
   }
 }
 
@@ -241,31 +312,54 @@ class _WorkerCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final name = worker['full_name']?.toString() ?? 'Worker';
     final avatarUrl = worker['avatar_url']?.toString();
-    final headline = worker['headline']?.toString() ??
-        worker['bio']?.toString() ?? '';
+    final headline =
+        worker['headline']?.toString() ?? worker['bio']?.toString() ?? '';
     final rating = worker['average_rating'] ?? worker['rating'];
-    final totalReviews = worker['total_reviews'] ?? worker['review_count'] ?? 0;
-    final distance = worker['distance_km'];
+    final totalReviews =
+        worker['total_reviews'] ?? worker['review_count'] ?? 0;
+    final workerState = worker['worker_state']?.toString();
+    final workerLga = worker['worker_lga']?.toString();
     final isVerified = worker['verification_status'] == 'verified' ||
         worker['is_verified'] == true;
-    final skills = worker['skills'] as List? ??
-        worker['worker_skills'] as List? ?? [];
+    final skills =
+        worker['skills'] as List? ?? worker['worker_skills'] as List? ?? [];
+    final isAvailable = worker['is_available'] == true;
 
     return AppCard(
       onTap: onTap,
       child: Row(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
-          AppAvatar(
-            imageUrl: avatarUrl,
-            name: name,
-            size: AppDimensions.avatarLg,
+          // Avatar with online indicator
+          Stack(
+            children: [
+              AppAvatar(
+                imageUrl: avatarUrl,
+                name: name,
+                size: AppDimensions.avatarLg,
+              ),
+              if (isAvailable)
+                Positioned(
+                  bottom: 2,
+                  right: 2,
+                  child: Container(
+                    width: 14,
+                    height: 14,
+                    decoration: BoxDecoration(
+                      color: AppColors.success,
+                      shape: BoxShape.circle,
+                      border: Border.all(color: AppColors.white, width: 2),
+                    ),
+                  ),
+                ),
+            ],
           ),
           const SizedBox(width: AppDimensions.md),
           Expanded(
             child: Column(
               crossAxisAlignment: CrossAxisAlignment.start,
               children: [
+                // Name + verified + rating row
                 Row(
                   children: [
                     Expanded(
@@ -274,7 +368,9 @@ class _WorkerCard extends StatelessWidget {
                           Flexible(
                             child: Text(
                               name,
-                              style: AppTextStyles.labelLarge,
+                              style: AppTextStyles.labelLarge.copyWith(
+                                fontSize: 15,
+                              ),
                               maxLines: 1,
                               overflow: TextOverflow.ellipsis,
                             ),
@@ -284,7 +380,7 @@ class _WorkerCard extends StatelessWidget {
                             const Icon(
                               Icons.verified,
                               size: 16,
-                              color: AppColors.info,
+                              color: AppColors.primary,
                             ),
                           ],
                         ],
@@ -293,45 +389,51 @@ class _WorkerCard extends StatelessWidget {
                     if (rating != null)
                       Row(
                         children: [
-                          const Icon(Icons.star, size: 14, color: AppColors.ratingStar),
+                          const Icon(Icons.star,
+                              size: 16, color: AppColors.ratingStar),
                           const SizedBox(width: 2),
                           Text(
                             '${rating is num ? rating.toStringAsFixed(1) : rating}',
-                            style: AppTextStyles.labelMedium,
-                          ),
-                          Text(
-                            ' ($totalReviews)',
-                            style: AppTextStyles.caption,
+                            style: AppTextStyles.labelMedium.copyWith(
+                              fontWeight: FontWeight.w700,
+                            ),
                           ),
                         ],
                       ),
                   ],
                 ),
+                // Headline
                 if (headline.isNotEmpty) ...[
                   const SizedBox(height: 2),
                   Text(
                     headline,
                     style: AppTextStyles.bodySmall,
-                    maxLines: 2,
+                    maxLines: 1,
                     overflow: TextOverflow.ellipsis,
                   ),
                 ],
+                // Skill chips
                 if (skills.isNotEmpty) ...[
-                  const SizedBox(height: 6),
+                  const SizedBox(height: 8),
                   Wrap(
-                    spacing: 4,
+                    spacing: 6,
                     runSpacing: 4,
                     children: skills.take(3).map<Widget>((s) {
                       final skillName = s is Map
-                          ? (s['skills']?['name'] ?? s['name'] ?? '').toString()
+                          ? (s['skill_name'] ??
+                                  s['skills']?['name'] ??
+                                  s['name'] ??
+                                  '')
+                              .toString()
                           : s.toString();
                       return Container(
                         padding: const EdgeInsets.symmetric(
                           horizontal: 8,
-                          vertical: 2,
+                          vertical: 3,
                         ),
                         decoration: BoxDecoration(
-                          color: AppColors.primary.withValues(alpha: 0.08),
+                          color:
+                              AppColors.primary.withValues(alpha: 0.08),
                           borderRadius: BorderRadius.circular(4),
                         ),
                         child: Text(
@@ -339,156 +441,42 @@ class _WorkerCard extends StatelessWidget {
                           style: const TextStyle(
                             fontSize: 11,
                             color: AppColors.primary,
-                            fontWeight: FontWeight.w500,
+                            fontWeight: FontWeight.w600,
                           ),
                         ),
                       );
                     }).toList(),
                   ),
                 ],
-                if (distance != null) ...[
-                  const SizedBox(height: 6),
-                  Row(
-                    children: [
-                      const Icon(
-                        Icons.location_on_outlined,
-                        size: 14,
-                        color: AppColors.textHint,
-                      ),
+                // Location + reviews
+                const SizedBox(height: 8),
+                Row(
+                  children: [
+                    if (workerState != null || workerLga != null) ...[
+                      const Icon(Icons.location_on_outlined,
+                          size: 14, color: AppColors.textHint),
                       const SizedBox(width: 2),
-                      Text(
-                        '${distance is num ? distance.toStringAsFixed(1) : distance} km away',
-                        style: AppTextStyles.caption,
+                      Flexible(
+                        child: Text(
+                          [workerLga, workerState]
+                              .where(
+                                  (s) => s != null && s.isNotEmpty)
+                              .join(', '),
+                          style: AppTextStyles.caption,
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
                       ),
                     ],
-                  ),
-                ],
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _FilterSheet extends StatefulWidget {
-  final List<Map<String, dynamic>> categories;
-  final String selectedCategoryId;
-  final void Function(String?) onApply;
-
-  const _FilterSheet({
-    required this.categories,
-    required this.selectedCategoryId,
-    required this.onApply,
-  });
-
-  @override
-  State<_FilterSheet> createState() => _FilterSheetState();
-}
-
-class _FilterSheetState extends State<_FilterSheet> {
-  late String? _selectedCategory;
-
-  @override
-  void initState() {
-    super.initState();
-    _selectedCategory = widget.selectedCategoryId.isNotEmpty
-        ? widget.selectedCategoryId
-        : null;
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      constraints: BoxConstraints(
-        maxHeight: MediaQuery.of(context).size.height * 0.6,
-      ),
-      decoration: BoxDecoration(
-        color: Theme.of(context).scaffoldBackgroundColor,
-        borderRadius: const BorderRadius.vertical(
-          top: Radius.circular(AppDimensions.radiusLg),
-        ),
-      ),
-      child: Column(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          const SizedBox(height: 12),
-          Container(
-            width: 40,
-            height: 4,
-            decoration: BoxDecoration(
-              color: AppColors.border,
-              borderRadius: BorderRadius.circular(2),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.md),
-            child: Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                const Text('Filters', style: AppTextStyles.h4),
-                TextButton(
-                  onPressed: () {
-                    setState(() => _selectedCategory = null);
-                  },
-                  child: const Text('Clear All'),
+                    const Spacer(),
+                    if (totalReviews > 0)
+                      Text(
+                        '($totalReviews reviews)',
+                        style: AppTextStyles.caption,
+                      ),
+                  ],
                 ),
               ],
-            ),
-          ),
-          const Divider(height: 1),
-          Flexible(
-            child: SingleChildScrollView(
-              padding: const EdgeInsets.all(AppDimensions.screenPadding),
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  const Text('Category', style: AppTextStyles.labelLarge),
-                  const SizedBox(height: AppDimensions.sm),
-                  Wrap(
-                    spacing: 8,
-                    runSpacing: 8,
-                    children: widget.categories.map((cat) {
-                      final id = cat['id']?.toString() ?? '';
-                      return AppChip(
-                        label: cat['name']?.toString() ?? '',
-                        isSelected: _selectedCategory == id,
-                        onTap: () {
-                          setState(() {
-                            _selectedCategory =
-                                _selectedCategory == id ? null : id;
-                          });
-                        },
-                      );
-                    }).toList(),
-                  ),
-                ],
-              ),
-            ),
-          ),
-          Padding(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            child: SafeArea(
-              child: SizedBox(
-                width: double.infinity,
-                height: AppDimensions.buttonHeight,
-                child: ElevatedButton(
-                  onPressed: () {
-                    widget.onApply(_selectedCategory);
-                    Navigator.pop(context);
-                  },
-                  style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
-                    shape: RoundedRectangleBorder(
-                      borderRadius:
-                          BorderRadius.circular(AppDimensions.buttonRadius),
-                    ),
-                  ),
-                  child: const Text('Apply Filters', style: AppTextStyles.button),
-                ),
-              ),
             ),
           ),
         ],

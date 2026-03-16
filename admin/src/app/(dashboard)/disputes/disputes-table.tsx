@@ -14,7 +14,7 @@ import Link from "next/link";
 type DisputeRow = {
   id: string;
   reason: string;
-  dispute_status: string;
+  status: string;
   created_at: string;
   raiser: { full_name: string } | null;
   bookings: { id: string; agreed_price: number; jobs: { title: string } | null } | null;
@@ -47,11 +47,11 @@ const columns: ColumnDef<DisputeRow, unknown>[] = [
         : "N/A",
   },
   {
-    accessorKey: "dispute_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.dispute_status] || ""}>
-        {row.original.dispute_status.replace(/_/g, " ")}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {row.original.status.replace(/_/g, " ")}
       </Badge>
     ),
   },

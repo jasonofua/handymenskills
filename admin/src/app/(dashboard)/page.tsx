@@ -36,16 +36,16 @@ async function getDashboardData() {
     supabase.from("worker_profiles").select("*", { count: "exact", head: true }).eq("verification_status", "verified").lt("created_at", thisMonth),
     supabase.from("jobs").select("*", { count: "exact", head: true }),
     supabase.from("jobs").select("*", { count: "exact", head: true }).lt("created_at", thisMonth),
-    supabase.from("payments").select("platform_fee").eq("payment_status", "completed").gte("created_at", thisMonth),
-    supabase.from("payments").select("platform_fee").eq("payment_status", "completed").gte("created_at", lastMonth).lt("created_at", thisMonth),
+    supabase.from("payments").select("amount").eq("status", "success").gte("created_at", thisMonth),
+    supabase.from("payments").select("amount").eq("status", "success").gte("created_at", lastMonth).lt("created_at", thisMonth),
     supabase.from("worker_profiles").select("*", { count: "exact", head: true }).eq("verification_status", "pending"),
-    supabase.from("reports").select("*", { count: "exact", head: true }).eq("report_status", "pending"),
-    supabase.from("disputes").select("*", { count: "exact", head: true }).in("dispute_status", ["open", "under_review"]),
-    supabase.from("bookings").select("id, booking_status, agreed_price, created_at, client:profiles!bookings_client_id_fkey(full_name), worker:profiles!bookings_worker_id_fkey(full_name)").order("created_at", { ascending: false }).limit(5),
+    supabase.from("reports").select("*", { count: "exact", head: true }).eq("status", "pending"),
+    supabase.from("disputes").select("*", { count: "exact", head: true }).in("status", ["open", "under_review"]),
+    supabase.from("bookings").select("id, status, agreed_price, created_at, client:profiles!bookings_client_id_fkey(full_name), worker:profiles!bookings_worker_id_fkey(full_name)").order("created_at", { ascending: false }).limit(5),
   ]);
 
-  const totalRevenue = revenueData?.reduce((sum, p) => sum + (p.platform_fee || 0), 0) || 0;
-  const lastMonthRevenue = revenueLastMonthData?.reduce((sum, p) => sum + (p.platform_fee || 0), 0) || 0;
+  const totalRevenue = revenueData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
+  const lastMonthRevenue = revenueLastMonthData?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
   const calcGrowth = (current: number, previous: number) =>
     previous === 0 ? (current > 0 ? 100 : 0) : ((current - previous) / previous) * 100;
@@ -64,12 +64,12 @@ async function getDashboardData() {
 
     const { data: monthPayments } = await supabase
       .from("payments")
-      .select("platform_fee, amount")
-      .eq("payment_status", "completed")
+      .select("amount")
+      .eq("status", "success")
       .gte("created_at", monthStart.toISOString())
       .lte("created_at", monthEnd.toISOString());
 
-    const revenue = monthPayments?.reduce((sum, p) => sum + (p.platform_fee || 0), 0) || 0;
+    const revenue = monthPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
     const total = monthPayments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
 
     chartData.push({
@@ -106,7 +106,7 @@ export default async function DashboardPage() {
 
   return (
     <div className="space-y-6">
-      <PageHeader title="Dashboard" description="Overview of the Artisan Marketplace platform" />
+      <PageHeader title="Dashboard" description="Overview of the Handymenskills platform" />
 
       <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
         <MetricCard
@@ -224,14 +224,14 @@ export default async function DashboardPage() {
                       <span className="text-sm font-medium">{formatNaira(booking.agreed_price as number)}</span>
                       <Badge
                         className={
-                          (booking.booking_status as string) === "completed"
+                          (booking.status as string) === "completed"
                             ? "bg-emerald-100 text-emerald-800"
-                            : (booking.booking_status as string) === "cancelled"
+                            : (booking.status as string) === "cancelled"
                             ? "bg-red-100 text-red-800"
                             : "bg-blue-100 text-blue-800"
                         }
                       >
-                        {(booking.booking_status as string).replace(/_/g, " ")}
+                        {(booking.status as string).replace(/_/g, " ")}
                       </Badge>
                     </div>
                   </div>

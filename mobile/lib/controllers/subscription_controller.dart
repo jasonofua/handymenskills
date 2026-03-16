@@ -1,4 +1,5 @@
 import 'package:flutter/material.dart';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../data/repositories/subscription_repository.dart';
 import '../widgets/common/app_snackbar.dart';
@@ -23,7 +24,9 @@ class SubscriptionController extends GetxController {
     try {
       final data = await _subscriptionRepo.getPlans();
       plans.assignAll(data);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('SubscriptionController: Failed to load plans: $e');
+    }
   }
 
   Future<void> loadMySubscription() async {
@@ -33,7 +36,8 @@ class SubscriptionController extends GetxController {
       if (currentSubscription.value != null) {
         subscriptionStatus.value = currentSubscription.value!['status'] ?? 'expired';
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('SubscriptionController: Failed to load subscription: $e');
       subscriptionStatus.value = 'expired';
     } finally {
       isLoading.value = false;

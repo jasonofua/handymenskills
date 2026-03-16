@@ -1,4 +1,4 @@
-/// All enums used across the Artisan Marketplace data models.
+/// All enums used across the Handymenskills data models.
 
 enum UserRole {
   client,

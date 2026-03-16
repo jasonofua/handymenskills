@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:geolocator/geolocator.dart';
 import 'package:get/get.dart';
 import '../data/services/location_service.dart';
@@ -24,7 +25,8 @@ class LocationController extends GetxController {
         );
         currentAddress.value = address ?? '';
       }
-    } catch (_) {
+    } catch (e) {
+      debugPrint('LocationController: Failed to get location: $e');
     } finally {
       isLoading.value = false;
     }

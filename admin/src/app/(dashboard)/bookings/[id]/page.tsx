@@ -62,8 +62,8 @@ export default async function BookingDetailPage({ params }: Props) {
                 <CardTitle className="text-lg">
                   {job?.title || "Untitled Job"}
                 </CardTitle>
-                <Badge className={statusColors[booking.booking_status] || ""}>
-                  {booking.booking_status.replace(/_/g, " ")}
+                <Badge className={statusColors[booking.status] || ""}>
+                  {booking.status.replace(/_/g, " ")}
                 </Badge>
               </div>
             </CardHeader>
@@ -135,15 +135,15 @@ export default async function BookingDetailPage({ params }: Props) {
                       <div>
                         <p className="text-sm font-medium">{formatNaira(payment.amount)}</p>
                         <p className="text-xs text-muted-foreground">
-                          Ref: {payment.payment_reference || "N/A"}
+                          Ref: {payment.paystack_reference || "N/A"}
                         </p>
                       </div>
                       <div className="text-right">
-                        <Badge className={statusColors[payment.payment_status] || ""}>
-                          {payment.payment_status}
+                        <Badge className={statusColors[payment.status] || ""}>
+                          {payment.status}
                         </Badge>
                         <p className="mt-1 text-xs text-muted-foreground">
-                          {payment.paid_at ? formatDate(payment.paid_at) : "Unpaid"}
+                          {payment.created_at ? formatDate(payment.created_at) : "Unpaid"}
                         </p>
                       </div>
                     </div>
@@ -167,7 +167,7 @@ export default async function BookingDetailPage({ params }: Props) {
                 </div>
                 <div className="flex justify-between">
                   <span className="text-muted-foreground">Platform Fee (15%)</span>
-                  <span className="font-medium">{formatNaira(booking.platform_fee)}</span>
+                  <span className="font-medium">{formatNaira(booking.platform_commission)}</span>
                 </div>
                 <Separator />
                 <div className="flex justify-between">

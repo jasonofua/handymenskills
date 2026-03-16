@@ -45,7 +45,9 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
     super.initState();
     _tabController = TabController(length: _tabs.length, vsync: this);
     _tabController.addListener(_onTabChanged);
-    _loadBookings();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadBookings();
+    });
   }
 
   @override

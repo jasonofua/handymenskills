@@ -72,25 +72,85 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Write Review'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text('Write a Review', style: AppTextStyles.h4),
       ),
       body: SingleChildScrollView(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),
         child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
+          crossAxisAlignment: CrossAxisAlignment.center,
           children: [
+            // Worker/service avatar placeholder
+            _buildServiceHeader(),
+            const SizedBox(height: AppDimensions.xl),
+
+            // Overall rating section
             _buildOverallRating(),
             const SizedBox(height: AppDimensions.lg),
+
+            // Category ratings
             _buildCategoryRatings(),
             const SizedBox(height: AppDimensions.lg),
-            _buildCommentSection(),
+
+            // Feedback textarea
+            _buildFeedbackSection(),
             const SizedBox(height: AppDimensions.xl),
+
+            // Submit button
             _buildSubmitButton(),
+
+            // Skip button
+            const SizedBox(height: AppDimensions.md),
+            _buildSkipButton(),
+
             const SizedBox(height: AppDimensions.xl),
           ],
         ),
       ),
+    );
+  }
+
+  Widget _buildServiceHeader() {
+    return Column(
+      children: [
+        // Large centered avatar placeholder
+        Container(
+          width: AppDimensions.avatarXl,
+          height: AppDimensions.avatarXl,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.1),
+            shape: BoxShape.circle,
+            border: Border.all(
+              color: AppColors.primary.withValues(alpha: 0.2),
+              width: 3,
+            ),
+          ),
+          child: const Icon(
+            Icons.person,
+            size: 48,
+            color: AppColors.primary,
+          ),
+        ),
+        const SizedBox(height: AppDimensions.md),
+        Text(
+          'Rate Your Experience',
+          style: AppTextStyles.h3,
+          textAlign: TextAlign.center,
+        ),
+        const SizedBox(height: AppDimensions.xs),
+        Text(
+          'Your feedback helps improve service quality',
+          style: AppTextStyles.bodySmall.copyWith(
+            color: AppColors.textSecondary,
+          ),
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 
@@ -99,46 +159,63 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
       child: Column(
         children: [
           Text(
-            'Overall Rating',
-            style: AppTextStyles.h4,
-          ),
-          const SizedBox(height: AppDimensions.xs),
-          Text(
-            'How would you rate this experience?',
-            style: AppTextStyles.bodySmall,
+            'How would you rate the service?',
+            style: AppTextStyles.labelLarge.copyWith(
+              fontSize: 15,
+            ),
+            textAlign: TextAlign.center,
           ),
           const SizedBox(height: AppDimensions.lg),
+
+          // Large star rating buttons
           Row(
             mainAxisAlignment: MainAxisAlignment.center,
             children: List.generate(5, (index) {
               final starValue = index + 1;
+              final isSelected = starValue <= _overallRating;
               return GestureDetector(
                 onTap: () {
                   setState(() {
                     _overallRating = starValue;
                   });
                 },
-                child: Padding(
+                child: AnimatedContainer(
+                  duration: const Duration(milliseconds: 200),
                   padding: const EdgeInsets.symmetric(horizontal: 6),
                   child: Icon(
-                    starValue <= _overallRating
-                        ? Icons.star
-                        : Icons.star_border,
-                    size: 44,
-                    color: AppColors.ratingStar,
+                    isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
+                    size: 48,
+                    color: isSelected ? AppColors.primary : AppColors.textHint.withValues(alpha: 0.4),
                   ),
                 ),
               );
             }),
           ),
           const SizedBox(height: AppDimensions.sm),
-          Text(
-            _getRatingLabel(_overallRating),
-            style: AppTextStyles.bodyMedium.copyWith(
-              color: _overallRating > 0
-                  ? AppColors.textPrimary
-                  : AppColors.textHint,
-              fontWeight: FontWeight.w500,
+
+          // Rating label
+          AnimatedSwitcher(
+            duration: const Duration(milliseconds: 200),
+            child: Container(
+              key: ValueKey(_overallRating),
+              padding: const EdgeInsets.symmetric(horizontal: 16, vertical: 6),
+              decoration: BoxDecoration(
+                color: _overallRating > 0
+                    ? AppColors.primary.withValues(alpha: 0.08)
+                    : Colors.transparent,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+              ),
+              child: Text(
+                _getRatingLabel(_overallRating),
+                style: AppTextStyles.labelMedium.copyWith(
+                  color: _overallRating > 0
+                      ? AppColors.primary
+                      : AppColors.textHint,
+                  fontWeight: _overallRating > 0
+                      ? FontWeight.w600
+                      : FontWeight.w400,
+                ),
+              ),
             ),
           ),
         ],
@@ -152,8 +229,8 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
           Text(
-            'Category Ratings',
-            style: AppTextStyles.h4,
+            'DETAILED RATINGS',
+            style: AppTextStyles.sectionHeader,
           ),
           const SizedBox(height: AppDimensions.xs),
           Text(
@@ -171,7 +248,10 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               });
             },
           ),
-          const Divider(height: AppDimensions.lg),
+          Divider(
+            height: AppDimensions.lg,
+            color: AppColors.border.withValues(alpha: 0.5),
+          ),
           _CategoryRatingRow(
             label: 'Communication',
             icon: Icons.chat_outlined,
@@ -182,7 +262,10 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               });
             },
           ),
-          const Divider(height: AppDimensions.lg),
+          Divider(
+            height: AppDimensions.lg,
+            color: AppColors.border.withValues(alpha: 0.5),
+          ),
           _CategoryRatingRow(
             label: 'Punctuality',
             icon: Icons.schedule_outlined,
@@ -193,7 +276,10 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
               });
             },
           ),
-          const Divider(height: AppDimensions.lg),
+          Divider(
+            height: AppDimensions.lg,
+            color: AppColors.border.withValues(alpha: 0.5),
+          ),
           _CategoryRatingRow(
             label: 'Value',
             icon: Icons.payments_outlined,
@@ -209,13 +295,13 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
     );
   }
 
-  Widget _buildCommentSection() {
+  Widget _buildFeedbackSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Text(
-          'Your Review',
-          style: AppTextStyles.h4,
+          'YOUR FEEDBACK',
+          style: AppTextStyles.sectionHeader,
         ),
         const SizedBox(height: AppDimensions.sm),
         Text(
@@ -236,10 +322,23 @@ class _WriteReviewScreenState extends State<WriteReviewScreen> {
   Widget _buildSubmitButton() {
     return Obx(() => AppButton(
           label: 'Submit Review',
+          trailingIcon: Icons.arrow_forward,
           onPressed: _submitReview,
           isLoading: _reviewController.isSubmitting.value,
-          icon: Icons.send,
         ));
+  }
+
+  Widget _buildSkipButton() {
+    return TextButton(
+      onPressed: () => context.pop(),
+      child: Text(
+        'Skip for now',
+        style: AppTextStyles.bodyMedium.copyWith(
+          color: AppColors.textSecondary,
+          fontWeight: FontWeight.w500,
+        ),
+      ),
+    );
   }
 
   String _getRatingLabel(int rating) {
@@ -277,28 +376,39 @@ class _CategoryRatingRow extends StatelessWidget {
   Widget build(BuildContext context) {
     return Row(
       children: [
-        Icon(icon, size: 20, color: AppColors.textSecondary),
-        const SizedBox(width: AppDimensions.sm),
+        Container(
+          width: 32,
+          height: 32,
+          decoration: BoxDecoration(
+            color: AppColors.primary.withValues(alpha: 0.08),
+            borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+          ),
+          child: Icon(icon, size: 18, color: AppColors.primary),
+        ),
+        const SizedBox(width: AppDimensions.sm + 2),
         Expanded(
           child: Text(
             label,
-            style: AppTextStyles.bodyMedium,
+            style: AppTextStyles.bodyMedium.copyWith(
+              fontWeight: FontWeight.w500,
+            ),
           ),
         ),
         Row(
           mainAxisSize: MainAxisSize.min,
           children: List.generate(5, (index) {
             final starValue = index + 1;
+            final isSelected = starValue <= rating;
             return GestureDetector(
               onTap: () => onChanged(starValue),
               child: Padding(
                 padding: const EdgeInsets.symmetric(horizontal: 2),
                 child: Icon(
-                  starValue <= rating
-                      ? Icons.star
-                      : Icons.star_border,
+                  isSelected ? Icons.star_rounded : Icons.star_outline_rounded,
                   size: 24,
-                  color: AppColors.ratingStar,
+                  color: isSelected
+                      ? AppColors.primary
+                      : AppColors.textHint.withValues(alpha: 0.3),
                 ),
               ),
             );

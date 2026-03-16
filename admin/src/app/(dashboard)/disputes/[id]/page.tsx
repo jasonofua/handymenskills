@@ -21,7 +21,7 @@ export default async function DisputeDetailPage({ params }: Props) {
   const { data: dispute } = await supabase
     .from("disputes")
     .select(
-      "*, raiser:profiles!disputes_raised_by_fkey(id, full_name, email), bookings(id, agreed_price, platform_fee, worker_payout, booking_status, client:profiles!bookings_client_id_fkey(id, full_name), worker:profiles!bookings_worker_id_fkey(id, full_name), jobs(title))"
+      "*, raiser:profiles!disputes_initiator_id_fkey(id, full_name, email), bookings(id, agreed_price, platform_commission, worker_payout, status, client:profiles!bookings_client_id_fkey(id, full_name), worker:profiles!bookings_worker_id_fkey(id, full_name), jobs(title))"
     )
     .eq("id", id)
     .single();
@@ -32,15 +32,15 @@ export default async function DisputeDetailPage({ params }: Props) {
   const booking = dispute.bookings as {
     id: string;
     agreed_price: number;
-    platform_fee: number;
+    platform_commission: number;
     worker_payout: number;
-    booking_status: string;
+    status: string;
     client: { id: string; full_name: string } | null;
     worker: { id: string; full_name: string } | null;
     jobs: { title: string } | null;
   } | null;
 
-  const isOpen = dispute.dispute_status === "open" || dispute.dispute_status === "under_review";
+  const isOpen = dispute.status === "open" || dispute.status === "under_review";
 
   return (
     <div className="space-y-6">
@@ -56,8 +56,8 @@ export default async function DisputeDetailPage({ params }: Props) {
             <CardHeader>
               <div className="flex items-center justify-between">
                 <CardTitle className="text-lg">Dispute</CardTitle>
-                <Badge className={statusColors[dispute.dispute_status] || ""}>
-                  {dispute.dispute_status.replace(/_/g, " ")}
+                <Badge className={statusColors[dispute.status] || ""}>
+                  {dispute.status.replace(/_/g, " ")}
                 </Badge>
               </div>
             </CardHeader>
@@ -168,7 +168,7 @@ export default async function DisputeDetailPage({ params }: Props) {
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Platform Fee</span>
-                <span>{formatNaira(booking?.platform_fee || 0)}</span>
+                <span>{formatNaira(booking?.platform_commission || 0)}</span>
               </div>
               <div className="flex justify-between">
                 <span className="text-muted-foreground">Worker Payout</span>

@@ -18,16 +18,16 @@ export default async function DisputesPage({ searchParams }: Props) {
   let query = supabase
     .from("disputes")
     .select(
-      "*, raiser:profiles!disputes_raised_by_fkey(full_name), bookings(id, agreed_price, jobs(title))",
+      "*, raiser:profiles!disputes_initiator_id_fkey(full_name), bookings(id, agreed_price, jobs(title))",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
     .range(offset, offset + DEFAULT_PAGE_SIZE - 1);
 
   if (status) {
-    query = query.eq("dispute_status", status);
+    query = query.eq("status", status);
   } else {
-    query = query.in("dispute_status", ["open", "under_review"]);
+    query = query.in("status", ["open", "under_review"]);
   }
 
   const { data: disputes, count } = await query;

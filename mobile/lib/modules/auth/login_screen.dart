@@ -1,9 +1,7 @@
 import 'package:flutter/material.dart';
-import 'package:flutter/services.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
-import '../../config/constants.dart';
 import '../../config/theme/app_colors.dart';
 import '../../config/theme/app_dimensions.dart';
 import '../../config/theme/app_text_styles.dart';
@@ -21,112 +19,64 @@ class LoginScreen extends StatefulWidget {
 
 class _LoginScreenState extends State<LoginScreen> {
   final _formKey = GlobalKey<FormState>();
-  final _phoneController = TextEditingController();
+  final _emailController = TextEditingController();
+  final _passwordController = TextEditingController();
   final _authController = Get.find<AuthController>();
+  bool _obscurePassword = true;
 
-  String _selectedCountryCode = AppConstants.countryCode;
-
-  static const List<_CountryCode> _countryCodes = [
-    _CountryCode(code: '+234', flag: '\u{1F1F3}\u{1F1EC}', name: 'Nigeria'),
-    _CountryCode(code: '+233', flag: '\u{1F1EC}\u{1F1ED}', name: 'Ghana'),
-    _CountryCode(code: '+254', flag: '\u{1F1F0}\u{1F1EA}', name: 'Kenya'),
-    _CountryCode(code: '+27', flag: '\u{1F1FF}\u{1F1E6}', name: 'South Africa'),
-    _CountryCode(code: '+1', flag: '\u{1F1FA}\u{1F1F8}', name: 'United States'),
-    _CountryCode(code: '+44', flag: '\u{1F1EC}\u{1F1E7}', name: 'United Kingdom'),
-  ];
-
-  String? _validatePhone(String? value) {
+  String? _validateEmail(String? value) {
     if (value == null || value.trim().isEmpty) {
-      return 'Please enter your phone number';
+      return 'Please enter your email address';
     }
-    final digitsOnly = value.replaceAll(RegExp(r'\D'), '');
-    if (digitsOnly.length < 10 || digitsOnly.length > 11) {
-      return 'Enter a valid phone number';
+    final emailRegex = RegExp(
+      r'^[a-zA-Z0-9._%+-]+@[a-zA-Z0-9.-]+\.[a-zA-Z]{2,}$',
+    );
+    if (!emailRegex.hasMatch(value.trim())) {
+      return 'Please enter a valid email address';
     }
     return null;
   }
 
-  Future<void> _sendOtp() async {
+  String? _validatePassword(String? value) {
+    if (value == null || value.isEmpty) {
+      return 'Please enter your password';
+    }
+    if (value.length < 6) {
+      return 'Password must be at least 6 characters';
+    }
+    return null;
+  }
+
+  Future<void> _signIn() async {
     if (!_formKey.currentState!.validate()) return;
 
-    final phone = _phoneController.text.trim();
-    final fullPhone = '$_selectedCountryCode$phone';
+    final email = _emailController.text.trim();
+    final password = _passwordController.text;
 
     try {
-      await _authController.signInWithOtp(fullPhone);
+      await _authController.signIn(email: email, password: password);
 
       if (!mounted) return;
-      context.push(AppRoutes.otp, extra: fullPhone);
+      await _authController.refreshProfile();
+
+      if (!mounted) return;
+      final role = _authController.userRole.value;
+      if (role == 'worker') {
+        context.go(AppRoutes.workerDashboard);
+      } else if (role == 'client') {
+        context.go(AppRoutes.clientDashboard);
+      } else {
+        context.go(AppRoutes.roleSelection);
+      }
     } catch (_) {
       // Error is already handled in AuthController via AppSnackbar
     }
   }
 
-  void _showCountryCodePicker() {
-    showModalBottomSheet<void>(
-      context: context,
-      shape: const RoundedRectangleBorder(
-        borderRadius: BorderRadius.vertical(
-          top: Radius.circular(AppDimensions.radiusLg),
-        ),
-      ),
-      builder: (context) {
-        return SafeArea(
-          child: Column(
-            mainAxisSize: MainAxisSize.min,
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              Padding(
-                padding: const EdgeInsets.fromLTRB(
-                  AppDimensions.screenPadding,
-                  AppDimensions.lg,
-                  AppDimensions.screenPadding,
-                  AppDimensions.sm,
-                ),
-                child: Text('Select Country Code', style: AppTextStyles.h4),
-              ),
-              const Divider(),
-              ListView.builder(
-                shrinkWrap: true,
-                itemCount: _countryCodes.length,
-                itemBuilder: (context, index) {
-                  final country = _countryCodes[index];
-                  final isSelected = country.code == _selectedCountryCode;
-                  return ListTile(
-                    leading: Text(
-                      country.flag,
-                      style: const TextStyle(fontSize: 24),
-                    ),
-                    title: Text(country.name, style: AppTextStyles.bodyLarge),
-                    trailing: Text(
-                      country.code,
-                      style: AppTextStyles.labelLarge.copyWith(
-                        color: isSelected
-                            ? AppColors.primary
-                            : AppColors.textSecondary,
-                      ),
-                    ),
-                    selected: isSelected,
-                    onTap: () {
-                      setState(() {
-                        _selectedCountryCode = country.code;
-                      });
-                      Navigator.pop(context);
-                    },
-                  );
-                },
-              ),
-              const SizedBox(height: AppDimensions.md),
-            ],
-          ),
-        );
-      },
-    );
-  }
-
   @override
   void dispose() {
-    _phoneController.dispose();
+    _emailController.dispose();
+    _passwordController.dispose();
     super.dispose();
   }
 
@@ -146,33 +96,33 @@ class _LoginScreenState extends State<LoginScreen> {
               children: [
                 const SizedBox(height: 60),
 
-                // App logo
+                // App logo — solid green rounded square with white briefcase
                 Center(
                   child: Container(
-                    width: 88,
-                    height: 88,
+                    width: 96,
+                    height: 96,
                     decoration: BoxDecoration(
-                      color: AppColors.primary.withOpacity(0.08),
+                      color: AppColors.primary,
                       borderRadius: BorderRadius.circular(22),
                     ),
                     child: const Icon(
-                      Icons.handyman_rounded,
+                      Icons.home_repair_service_outlined,
                       size: 48,
-                      color: AppColors.primary,
+                      color: AppColors.white,
                     ),
                   ),
                 ),
                 const SizedBox(height: AppDimensions.lg),
 
                 // Title
-                Text(
+                const Text(
                   'Welcome Back',
-                  style: AppTextStyles.h2,
+                  style: AppTextStyles.h1,
                   textAlign: TextAlign.center,
                 ),
                 const SizedBox(height: AppDimensions.sm),
                 Text(
-                  'Enter your phone number to continue',
+                  'Sign in to your account',
                   style: AppTextStyles.bodyMedium.copyWith(
                     color: AppColors.textSecondary,
                   ),
@@ -180,60 +130,91 @@ class _LoginScreenState extends State<LoginScreen> {
                 ),
                 const SizedBox(height: AppDimensions.xxl),
 
-                // Phone input
+                // Email input
                 AppTextField(
-                  label: 'Phone Number',
-                  hint: '8012345678',
-                  controller: _phoneController,
-                  keyboardType: TextInputType.phone,
+                  label: 'Email',
+                  hint: 'your@email.com',
+                  controller: _emailController,
+                  keyboardType: TextInputType.emailAddress,
+                  textInputAction: TextInputAction.next,
+                  validator: _validateEmail,
+                  prefixIcon: const Icon(
+                    Icons.mail_outline,
+                    color: AppColors.textHint,
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.lg),
+
+                // Password input
+                AppTextField(
+                  label: 'Password',
+                  hint: '\u2022\u2022\u2022\u2022\u2022\u2022\u2022\u2022',
+                  controller: _passwordController,
+                  obscureText: _obscurePassword,
+                  keyboardType: TextInputType.visiblePassword,
                   textInputAction: TextInputAction.done,
-                  validator: _validatePhone,
-                  inputFormatters: [
-                    FilteringTextInputFormatter.digitsOnly,
-                    LengthLimitingTextInputFormatter(11),
-                  ],
-                  prefixIcon: GestureDetector(
-                    onTap: _showCountryCodePicker,
-                    child: Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: AppDimensions.sm,
-                      ),
-                      child: Row(
-                        mainAxisSize: MainAxisSize.min,
-                        children: [
-                          const SizedBox(width: AppDimensions.xs),
-                          Text(
-                            _selectedCountryCode,
-                            style: AppTextStyles.bodyLarge.copyWith(
-                              fontWeight: FontWeight.w600,
-                            ),
-                          ),
-                          const SizedBox(width: AppDimensions.xs),
-                          const Icon(
-                            Icons.keyboard_arrow_down_rounded,
-                            size: 20,
-                            color: AppColors.textSecondary,
-                          ),
-                          const SizedBox(width: AppDimensions.xs),
-                          Container(
-                            width: 1,
-                            height: 24,
-                            color: AppColors.border,
-                          ),
-                        ],
+                  validator: _validatePassword,
+                  prefixIcon: const Icon(
+                    Icons.lock_outline,
+                    color: AppColors.textHint,
+                  ),
+                  suffixIcon: IconButton(
+                    icon: Icon(
+                      _obscurePassword
+                          ? Icons.visibility_outlined
+                          : Icons.visibility_off_outlined,
+                      color: AppColors.textHint,
+                    ),
+                    onPressed: () {
+                      setState(() {
+                        _obscurePassword = !_obscurePassword;
+                      });
+                    },
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.sm),
+
+                // Forgot password link
+                Align(
+                  alignment: Alignment.centerRight,
+                  child: GestureDetector(
+                    onTap: () => context.push(AppRoutes.forgotPassword),
+                    child: Text(
+                      'Forgot Password?',
+                      style: AppTextStyles.labelMedium.copyWith(
+                        color: AppColors.primary,
                       ),
                     ),
                   ),
                 ),
                 const SizedBox(height: AppDimensions.xl),
 
-                // Send OTP button
+                // Sign in button
                 Obx(
                   () => AppButton(
-                    label: 'Send OTP',
-                    onPressed: _sendOtp,
+                    label: 'Sign In',
+                    onPressed: _signIn,
                     isLoading: _authController.isLoading.value,
                   ),
+                ),
+                const SizedBox(height: AppDimensions.lg),
+
+                // OR CONTINUE WITH divider
+                Row(
+                  children: [
+                    const Expanded(child: Divider(color: AppColors.border)),
+                    Padding(
+                      padding: const EdgeInsets.symmetric(horizontal: 16),
+                      child: Text(
+                        'OR CONTINUE WITH',
+                        style: AppTextStyles.caption.copyWith(
+                          letterSpacing: 1,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                    const Expanded(child: Divider(color: AppColors.border)),
+                  ],
                 ),
                 const SizedBox(height: AppDimensions.lg),
 
@@ -258,7 +239,15 @@ class _LoginScreenState extends State<LoginScreen> {
                     ),
                   ],
                 ),
-                const SizedBox(height: AppDimensions.xl),
+                const SizedBox(height: AppDimensions.xxl),
+
+                // Copyright footer
+                Text(
+                  '\u00A9 2024 Handymenskills. All rights reserved.',
+                  style: AppTextStyles.caption,
+                  textAlign: TextAlign.center,
+                ),
+                const SizedBox(height: AppDimensions.lg),
               ],
             ),
           ),
@@ -266,18 +255,4 @@ class _LoginScreenState extends State<LoginScreen> {
       ),
     );
   }
-}
-
-// -- Country code data model --
-
-class _CountryCode {
-  final String code;
-  final String flag;
-  final String name;
-
-  const _CountryCode({
-    required this.code,
-    required this.flag,
-    required this.name,
-  });
 }

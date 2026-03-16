@@ -7,7 +7,6 @@ import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
 import '../../../controllers/subscription_controller.dart';
-import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_error_widget.dart';
 import '../../../widgets/common/app_shimmer.dart';
 
@@ -25,7 +24,9 @@ class _PlanSelectionScreenState extends State<PlanSelectionScreen> {
   @override
   void initState() {
     super.initState();
-    _subscriptionController.loadPlans();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscriptionController.loadPlans();
+    });
   }
 
   Future<void> _subscribeToPlan() async {
@@ -164,7 +165,6 @@ class _PlanCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final name = plan['name'] ?? 'Plan';
     final price = (plan['price'] as num?)?.toDouble() ?? 0;
     final durationMonths = plan['duration_months'] as int? ?? 1;
     final features = List<String>.from(plan['features'] ?? []);

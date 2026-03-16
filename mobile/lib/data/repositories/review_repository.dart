@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class ReviewRepository {
@@ -45,6 +43,24 @@ class ReviewRepository {
     } catch (e) {
       throw Exception(
           'Failed to get review for booking $bookingId: $e');
+    }
+  }
+
+  /// Updates an existing review.
+  Future<void> updateReview(String reviewId, Map<String, dynamic> data) async {
+    try {
+      await supabase.from('reviews').update(data).eq('id', reviewId);
+    } catch (e) {
+      throw Exception('Failed to update review $reviewId: $e');
+    }
+  }
+
+  /// Deletes a review by ID.
+  Future<void> deleteReview(String reviewId) async {
+    try {
+      await supabase.from('reviews').delete().eq('id', reviewId);
+    } catch (e) {
+      throw Exception('Failed to delete review $reviewId: $e');
     }
   }
 }

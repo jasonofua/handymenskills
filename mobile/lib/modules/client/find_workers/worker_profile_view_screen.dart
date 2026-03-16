@@ -4,6 +4,7 @@ import 'package:go_router/go_router.dart';
 
 import '../../../data/repositories/worker_repository.dart';
 import '../../../data/repositories/favorite_repository.dart';
+import '../../../controllers/chat_controller.dart';
 import '../../../controllers/review_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
@@ -39,9 +40,11 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
   @override
   void initState() {
     super.initState();
-    _loadProfile();
-    _checkSaved();
-    _reviewController.loadReviews(widget.workerId, refresh: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadProfile();
+      _checkSaved();
+      _reviewController.loadReviews(widget.workerId, refresh: true);
+    });
   }
 
   Future<void> _loadProfile() async {
@@ -61,7 +64,9 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
   Future<void> _checkSaved() async {
     try {
       _isSaved.value = await _favoriteRepo.isWorkerSaved(widget.workerId);
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('WorkerProfileView: Failed to check saved status: $e');
+    }
   }
 
   Future<void> _toggleSave() async {
@@ -207,6 +212,28 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
                         textAlign: TextAlign.center,
                       ),
                     ],
+                    if (rating != null) ...[
+                      const SizedBox(height: 8),
+                      Row(
+                        mainAxisAlignment: MainAxisAlignment.center,
+                        children: [
+                          ...List.generate(5, (i) => Icon(
+                            i < (rating is num ? rating.round() : 0)
+                                ? Icons.star
+                                : Icons.star_border,
+                            size: 18,
+                            color: AppColors.ratingStar,
+                          )),
+                          const SizedBox(width: 8),
+                          Text(
+                            '($totalReviews reviews)',
+                            style: AppTextStyles.bodySmall.copyWith(
+                              color: AppColors.white.withValues(alpha: 0.7),
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
                   ],
                 ),
               ),
@@ -244,47 +271,68 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
   }
 
   Widget _buildStatsRow(dynamic rating, dynamic totalReviews, dynamic totalJobs) {
+    final yearsExp = _profile['years_experience'] ?? _profile['experience_years'];
+
     return AppCard(
-      child: Row(
-        mainAxisAlignment: MainAxisAlignment.spaceAround,
-        children: [
-          _StatItem(
-            value: rating != null
-                ? (rating is num ? rating.toStringAsFixed(1) : rating.toString())
-                : 'N/A',
-            label: 'Rating',
-            icon: Icons.star,
-            color: AppColors.ratingStar,
-          ),
-          Container(width: 1, height: 40, color: AppColors.border),
-          _StatItem(
-            value: totalReviews.toString(),
-            label: 'Reviews',
-            icon: Icons.rate_review_outlined,
-            color: AppColors.info,
-          ),
-          Container(width: 1, height: 40, color: AppColors.border),
-          _StatItem(
-            value: totalJobs.toString(),
-            label: 'Jobs Done',
-            icon: Icons.check_circle_outline,
-            color: AppColors.success,
-          ),
-        ],
+      child: IntrinsicHeight(
+        child: Row(
+          children: [
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    totalJobs.toString(),
+                    style: AppTextStyles.h3.copyWith(color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('JOBS', style: AppTextStyles.sectionHeader),
+                ],
+              ),
+            ),
+            Container(width: 1, color: AppColors.border),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    yearsExp != null ? '${yearsExp}y' : 'N/A',
+                    style: AppTextStyles.h3.copyWith(color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('EXP', style: AppTextStyles.sectionHeader),
+                ],
+              ),
+            ),
+            Container(width: 1, color: AppColors.border),
+            Expanded(
+              child: Column(
+                children: [
+                  Text(
+                    rating != null
+                        ? (rating is num ? rating.toStringAsFixed(1) : rating.toString())
+                        : 'N/A',
+                    style: AppTextStyles.h3.copyWith(color: AppColors.primary),
+                  ),
+                  const SizedBox(height: 2),
+                  Text('RATING', style: AppTextStyles.sectionHeader),
+                ],
+              ),
+            ),
+          ],
+        ),
       ),
     );
   }
 
   Widget _buildAboutSection(String bio) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('About', style: AppTextStyles.labelLarge),
-          const SizedBox(height: AppDimensions.sm),
-          Text(bio, style: AppTextStyles.bodyMedium),
-        ],
-      ),
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ABOUT ME', style: AppTextStyles.sectionHeader),
+        const SizedBox(height: AppDimensions.sm),
+        AppCard(
+          child: Text(bio, style: AppTextStyles.bodyMedium),
+        ),
+      ],
     );
   }
 
@@ -368,59 +416,64 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
   }
 
   Widget _buildSkillsSection(List skills) {
-    return AppCard(
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
-        children: [
-          const Text('Skills', style: AppTextStyles.labelLarge),
-          const SizedBox(height: AppDimensions.sm),
-          ...skills.map<Widget>((ws) {
-            final skill = ws is Map ? ws : <String, dynamic>{};
-            final skillName = skill['skills']?['name']?.toString() ??
-                skill['name']?.toString() ?? '';
-            final proficiency = skill['proficiency_level']?.toString() ?? '';
-            final yearsExp = skill['years_experience'];
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('SKILLS & EXPERTISE', style: AppTextStyles.sectionHeader),
+        const SizedBox(height: AppDimensions.sm),
+        AppCard(
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              ...skills.map<Widget>((ws) {
+                final skill = ws is Map ? ws : <String, dynamic>{};
+                final skillName = skill['skills']?['name']?.toString() ??
+                    skill['name']?.toString() ?? '';
+                final proficiency = skill['proficiency_level']?.toString() ?? '';
+                final yearsExp = skill['years_experience'];
 
-            return Padding(
-              padding: const EdgeInsets.only(bottom: 8),
-              child: Row(
-                children: [
-                  Expanded(
-                    child: Text(skillName, style: AppTextStyles.bodyMedium),
-                  ),
-                  if (proficiency.isNotEmpty) ...[
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                        horizontal: 8,
-                        vertical: 2,
+                return Padding(
+                  padding: const EdgeInsets.only(bottom: 8),
+                  child: Row(
+                    children: [
+                      Expanded(
+                        child: Text(skillName, style: AppTextStyles.bodyMedium),
                       ),
-                      decoration: BoxDecoration(
-                        color: _proficiencyColor(proficiency).withValues(alpha: 0.1),
-                        borderRadius: BorderRadius.circular(4),
-                      ),
-                      child: Text(
-                        proficiency[0].toUpperCase() + proficiency.substring(1),
-                        style: TextStyle(
-                          fontSize: 11,
-                          color: _proficiencyColor(proficiency),
-                          fontWeight: FontWeight.w600,
+                      if (proficiency.isNotEmpty) ...[
+                        Container(
+                          padding: const EdgeInsets.symmetric(
+                            horizontal: 8,
+                            vertical: 2,
+                          ),
+                          decoration: BoxDecoration(
+                            color: _proficiencyColor(proficiency).withValues(alpha: 0.1),
+                            borderRadius: BorderRadius.circular(4),
+                          ),
+                          child: Text(
+                            proficiency[0].toUpperCase() + proficiency.substring(1),
+                            style: TextStyle(
+                              fontSize: 11,
+                              color: _proficiencyColor(proficiency),
+                              fontWeight: FontWeight.w600,
+                            ),
+                          ),
                         ),
-                      ),
-                    ),
-                  ],
-                  if (yearsExp != null) ...[
-                    const SizedBox(width: 8),
-                    Text(
-                      '${yearsExp}y',
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ],
-              ),
-            );
-          }),
-        ],
-      ),
+                      ],
+                      if (yearsExp != null) ...[
+                        const SizedBox(width: 8),
+                        Text(
+                          '${yearsExp}y',
+                          style: AppTextStyles.caption,
+                        ),
+                      ],
+                    ],
+                  ),
+                );
+              }),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -443,7 +496,7 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Portfolio', style: AppTextStyles.labelLarge),
+        const Text('PROJECT PORTFOLIO', style: AppTextStyles.sectionHeader),
         const SizedBox(height: AppDimensions.sm),
         SizedBox(
           height: 160,
@@ -476,9 +529,9 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Reviews', style: AppTextStyles.labelLarge),
+            const Text('RECENT REVIEWS', style: AppTextStyles.sectionHeader),
             TextButton(
-              onPressed: () => context.push('/reviews/${widget.workerId}'),
+              onPressed: () => context.push(AppRoutes.reviews.replaceFirst(':userId', widget.workerId)),
               child: const Text('View All'),
             ),
           ],
@@ -542,14 +595,19 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
           children: [
             Expanded(
               child: OutlinedButton.icon(
-                onPressed: () {
-                  // Navigate to chat
-                  context.push(AppRoutes.chat);
+                onPressed: () async {
+                  final chatController = Get.find<ChatController>();
+                  final conversationId = await chatController.startConversation(widget.workerId);
+                  if (conversationId != null && context.mounted) {
+                    context.push(AppRoutes.chatConversation.replaceFirst(':id', conversationId));
+                  }
                 },
                 icon: const Icon(Icons.chat_outlined, size: 18),
-                label: const Text('Chat'),
+                label: const Text('Contact'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(AppDimensions.buttonHeight),
+                  foregroundColor: AppColors.primary,
+                  side: const BorderSide(color: AppColors.primary),
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                   ),
@@ -559,19 +617,27 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
             const SizedBox(width: AppDimensions.md),
             Expanded(
               flex: 2,
-              child: ElevatedButton.icon(
+              child: ElevatedButton(
                 onPressed: () {
-                  AppSnackbar.info('Book worker feature coming soon');
+                  context.push(AppRoutes.clientPostJob);
                 },
-                icon: const Icon(Icons.calendar_today, size: 18),
-                label: const Text('Book Worker'),
                 style: ElevatedButton.styleFrom(
                   minimumSize: const Size.fromHeight(AppDimensions.buttonHeight),
                   backgroundColor: AppColors.primary,
                   foregroundColor: AppColors.white,
+                  elevation: 0,
                   shape: RoundedRectangleBorder(
                     borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                   ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Text('Hire Now',
+                        style: TextStyle(fontWeight: FontWeight.w700, fontSize: 16)),
+                    SizedBox(width: 6),
+                    Icon(Icons.arrow_forward, size: 18),
+                  ],
                 ),
               ),
             ),
@@ -582,31 +648,6 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
   }
 }
 
-class _StatItem extends StatelessWidget {
-  final String value;
-  final String label;
-  final IconData icon;
-  final Color color;
-
-  const _StatItem({
-    required this.value,
-    required this.label,
-    required this.icon,
-    required this.color,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      children: [
-        Icon(icon, color: color, size: 22),
-        const SizedBox(height: 4),
-        Text(value, style: AppTextStyles.h4),
-        Text(label, style: AppTextStyles.caption),
-      ],
-    );
-  }
-}
 
 class _ReviewCard extends StatelessWidget {
   final Map<String, dynamic> review;

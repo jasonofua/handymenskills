@@ -1,0 +1,29 @@
+{
+  "project_info": {
+    "project_number": "956918287684",
+    "project_id": "handymanskill",
+    "storage_bucket": "handymanskill.firebasestorage.app"
+  },
+  "client": [
+    {
+      "client_info": {
+        "mobilesdk_app_id": "1:956918287684:android:9b6f22e5c61c9e0ae4db11",
+        "android_client_info": {
+          "package_name": "com.artisan.marketplace.artisan_marketplace"
+        }
+      },
+      "oauth_client": [],
+      "api_key": [
+        {
+          "current_key": "AIzaSyDM1KzGye1KpL61qMymkXWCQPE72Wnsrg0"
+        }
+      ],
+      "services": {
+        "appinvite_service": {
+          "other_platform_oauth_client": []
+        }
+      }
+    }
+  ],
+  "configuration_version": "1"
+}

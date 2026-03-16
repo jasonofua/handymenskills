@@ -1,4 +1,5 @@
 import 'dart:async';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -59,26 +60,55 @@ class AuthController extends GetxController {
     }
   }
 
-  Future<void> signInWithOtp(String phone) async {
+  Future<void> signUp({
+    required String email,
+    required String password,
+    required Map<String, dynamic> metadata,
+  }) async {
     try {
       isLoading.value = true;
-      await _authRepo.signInWithOtp(phone);
+      debugPrint('AuthController: Signing up $email');
+      await _authRepo.signUp(
+        email: email,
+        password: password,
+        metadata: metadata,
+      );
+      debugPrint('AuthController: Sign up successful');
     } catch (e) {
-      AppSnackbar.error('Failed to send OTP: ${e.toString()}');
+      debugPrint('AuthController: Sign up error: $e');
+      AppSnackbar.error('Sign up failed: ${e.toString()}');
       rethrow;
     } finally {
       isLoading.value = false;
     }
   }
 
-  Future<bool> verifyOtp(String phone, String token) async {
+  Future<void> signIn({
+    required String email,
+    required String password,
+  }) async {
     try {
       isLoading.value = true;
-      await _authRepo.verifyOtp(phone, token);
-      return true;
+      debugPrint('AuthController: Signing in $email');
+      await _authRepo.signIn(email: email, password: password);
+      debugPrint('AuthController: Sign in successful');
     } catch (e) {
-      AppSnackbar.error('Invalid OTP. Please try again.');
-      return false;
+      debugPrint('AuthController: Sign in error: $e');
+      AppSnackbar.error('Invalid email or password.');
+      rethrow;
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
+  Future<void> resetPassword(String email) async {
+    try {
+      isLoading.value = true;
+      await _authRepo.resetPassword(email);
+      AppSnackbar.success('Password reset email sent. Check your inbox.');
+    } catch (e) {
+      AppSnackbar.error('Failed to send reset email: ${e.toString()}');
+      rethrow;
     } finally {
       isLoading.value = false;
     }
@@ -105,6 +135,18 @@ class AuthController extends GetxController {
     }
   }
 
+  Future<void> resendConfirmation({required String email}) async {
+    try {
+      isLoading.value = true;
+      await _authRepo.resendConfirmation(email);
+      AppSnackbar.success('Confirmation email resent. Check your inbox.');
+    } catch (e) {
+      AppSnackbar.error('Failed to resend: ${e.toString()}');
+    } finally {
+      isLoading.value = false;
+    }
+  }
+
   Future<void> signOut() async {
     try {
       await _authRepo.signOut();
@@ -115,7 +157,7 @@ class AuthController extends GetxController {
 
   String get userId => currentUser.value?.id ?? '';
   String get userName => profile['full_name'] ?? '';
-  String get userPhone => profile['phone'] ?? '';
+  String get userEmail => profile['email'] ?? '';
   String? get userAvatar => profile['avatar_url'];
   bool get isWorker => userRole.value == 'worker';
   bool get isClient => userRole.value == 'client';

@@ -9,7 +9,6 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../controllers/notification_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_empty_state.dart';
-import '../../../widgets/common/app_loading.dart';
 import '../../../widgets/common/app_shimmer.dart';
 
 class NotificationsScreen extends StatefulWidget {
@@ -26,7 +25,9 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   @override
   void initState() {
     super.initState();
-    _controller.loadNotifications(refresh: true);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _controller.loadNotifications(refresh: true);
+    });
   }
 
   Future<void> _onRefresh() async {
@@ -34,13 +35,11 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   }
 
   void _onNotificationTap(Map<String, dynamic> notification) {
-    // Mark as read
     final id = notification['id'] as String?;
     if (id != null && notification['is_read'] != true) {
       _controller.markAsRead(id);
     }
 
-    // Navigate based on type and reference
     final type = notification['type'] as String? ?? '';
     final referenceId = notification['reference_id'] as String?;
 
@@ -89,7 +88,7 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
   Widget build(BuildContext context) {
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Notifications'),
+        title: const Text('Notifications', style: AppTextStyles.h4),
         actions: [
           Obx(() {
             if (_controller.unreadCount.value == 0) {
@@ -97,7 +96,12 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
             }
             return TextButton(
               onPressed: _controller.markAllRead,
-              child: const Text('Mark all read'),
+              child: Text(
+                'Mark all as read',
+                style: AppTextStyles.labelMedium.copyWith(
+                  color: AppColors.primary,
+                ),
+              ),
             );
           }),
         ],
@@ -125,28 +129,58 @@ class _NotificationsScreenState extends State<NotificationsScreen> {
           );
         }
 
+        // Group notifications by date
+        final today = DateTime.now();
+        final todayNotifs = <Map<String, dynamic>>[];
+        final earlierNotifs = <Map<String, dynamic>>[];
+
+        for (final n in _controller.notifications) {
+          final createdAt = DateTime.tryParse(n['created_at'] ?? '');
+          if (createdAt != null &&
+              createdAt.day == today.day &&
+              createdAt.month == today.month &&
+              createdAt.year == today.year) {
+            todayNotifs.add(n);
+          } else {
+            earlierNotifs.add(n);
+          }
+        }
+
         return RefreshIndicator(
           onRefresh: _onRefresh,
-          child: ListView.separated(
-            padding: const EdgeInsets.symmetric(
-              vertical: AppDimensions.sm,
-            ),
-            itemCount: _controller.notifications.length,
-            separatorBuilder: (_, __) => const Divider(
-              height: AppDimensions.dividerThickness,
-              indent: AppDimensions.screenPadding,
-              endIndent: AppDimensions.screenPadding,
-            ),
-            itemBuilder: (context, index) {
-              final notification = _controller.notifications[index];
-              return _NotificationTile(
-                notification: notification,
-                onTap: () => _onNotificationTap(notification),
-              );
-            },
+          child: ListView(
+            padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+            children: [
+              if (todayNotifs.isNotEmpty) ...[
+                _buildSectionHeader('TODAY'),
+                ...todayNotifs.map((n) => _NotificationTile(
+                      notification: n,
+                      onTap: () => _onNotificationTap(n),
+                    )),
+              ],
+              if (earlierNotifs.isNotEmpty) ...[
+                _buildSectionHeader('EARLIER'),
+                ...earlierNotifs.map((n) => _NotificationTile(
+                      notification: n,
+                      onTap: () => _onNotificationTap(n),
+                    )),
+              ],
+            ],
           ),
         );
       }),
+    );
+  }
+
+  Widget _buildSectionHeader(String title) {
+    return Padding(
+      padding: const EdgeInsets.fromLTRB(
+        AppDimensions.screenPadding,
+        AppDimensions.md,
+        AppDimensions.screenPadding,
+        AppDimensions.sm,
+      ),
+      child: Text(title, style: AppTextStyles.sectionHeader),
     );
   }
 
@@ -185,7 +219,7 @@ class _NotificationTile extends StatelessWidget {
       child: Container(
         color: isRead
             ? Colors.transparent
-            : AppColors.primary.withValues(alpha: 0.04),
+            : AppColors.primary.withValues(alpha: 0.03),
         padding: const EdgeInsets.symmetric(
           horizontal: AppDimensions.screenPadding,
           vertical: AppDimensions.listItemPadding,
@@ -194,33 +228,53 @@ class _NotificationTile extends StatelessWidget {
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Container(
-              width: 44,
-              height: 44,
+              width: 48,
+              height: 48,
               decoration: BoxDecoration(
                 color: iconColor.withValues(alpha: 0.1),
-                shape: BoxShape.circle,
+                borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
               ),
-              child: Icon(
-                iconData,
-                color: iconColor,
-                size: 22,
-              ),
+              child: Icon(iconData, color: iconColor, size: 24),
             ),
             const SizedBox(width: AppDimensions.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    title,
-                    style: isRead
-                        ? AppTextStyles.bodyMedium
-                        : AppTextStyles.labelLarge,
-                    maxLines: 2,
-                    overflow: TextOverflow.ellipsis,
+                  Row(
+                    children: [
+                      Expanded(
+                        child: Text(
+                          title,
+                          style: isRead
+                              ? AppTextStyles.bodyMedium
+                              : AppTextStyles.labelLarge,
+                          maxLines: 2,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                      const SizedBox(width: 8),
+                      Text(
+                        createdAt != null
+                            ? timeago.format(createdAt, locale: 'en_short')
+                            : '',
+                        style: AppTextStyles.caption,
+                      ),
+                      if (!isRead) ...[
+                        const SizedBox(width: 6),
+                        Container(
+                          width: 8,
+                          height: 8,
+                          decoration: const BoxDecoration(
+                            color: AppColors.primary,
+                            shape: BoxShape.circle,
+                          ),
+                        ),
+                      ],
+                    ],
                   ),
                   if (body.isNotEmpty) ...[
-                    const SizedBox(height: 2),
+                    const SizedBox(height: 4),
                     Text(
                       body,
                       style: AppTextStyles.bodySmall,
@@ -228,28 +282,9 @@ class _NotificationTile extends StatelessWidget {
                       overflow: TextOverflow.ellipsis,
                     ),
                   ],
-                  const SizedBox(height: AppDimensions.xs),
-                  Text(
-                    createdAt != null
-                        ? timeago.format(createdAt)
-                        : '',
-                    style: AppTextStyles.caption,
-                  ),
                 ],
               ),
             ),
-            if (!isRead) ...[
-              const SizedBox(width: AppDimensions.sm),
-              Container(
-                width: 8,
-                height: 8,
-                margin: const EdgeInsets.only(top: 6),
-                decoration: const BoxDecoration(
-                  color: AppColors.primary,
-                  shape: BoxShape.circle,
-                ),
-              ),
-            ],
           ],
         ),
       ),

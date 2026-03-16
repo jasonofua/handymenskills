@@ -31,7 +31,7 @@ export default async function SubscriptionsPage({ searchParams }: Props) {
   let query = supabase
     .from("subscriptions")
     .select(
-      "*, profiles(full_name, email), subscription_plans(name, price, interval)",
+      "*, profiles!subscriptions_worker_id_fkey(full_name, email), subscription_plans(name, price, duration_months)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
@@ -72,7 +72,7 @@ export default async function SubscriptionsPage({ searchParams }: Props) {
               ) : (
                 subscriptions.map((sub) => {
                   const profile = sub.profiles as { full_name: string; email: string | null } | null;
-                  const plan = sub.subscription_plans as { name: string; price: number; interval: string } | null;
+                  const plan = sub.subscription_plans as { name: string; price: number; duration_months: number } | null;
                   return (
                     <TableRow key={sub.id}>
                       <TableCell>
@@ -83,7 +83,7 @@ export default async function SubscriptionsPage({ searchParams }: Props) {
                       </TableCell>
                       <TableCell>{plan?.name || "N/A"}</TableCell>
                       <TableCell>
-                        {plan ? `${formatNaira(plan.price)}/${plan.interval}` : "N/A"}
+                        {plan ? `${formatNaira(plan.price)}/${plan.duration_months}mo` : "N/A"}
                       </TableCell>
                       <TableCell>
                         <Badge className={statusColors[sub.status] || ""}>
@@ -91,7 +91,7 @@ export default async function SubscriptionsPage({ searchParams }: Props) {
                         </Badge>
                       </TableCell>
                       <TableCell className="text-sm">
-                        {formatDate(sub.current_period_start)} - {formatDate(sub.current_period_end)}
+                        {formatDate(sub.starts_at)} - {formatDate(sub.expires_at)}
                       </TableCell>
                       <TableCell>{formatDate(sub.created_at)}</TableCell>
                     </TableRow>

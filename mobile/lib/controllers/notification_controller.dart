@@ -1,3 +1,4 @@
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
@@ -57,7 +58,7 @@ class NotificationController extends GetxController {
       }
       unreadCount.value = await _notificationRepo.getUnreadCount();
     } catch (e) {
-      // Handle silently
+      debugPrint('NotificationController: Failed to load notifications: $e');
     } finally {
       isLoading.value = false;
     }
@@ -72,7 +73,9 @@ class NotificationController extends GetxController {
         notifications.refresh();
         if (unreadCount.value > 0) unreadCount.value--;
       }
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationController: Failed to mark as read: $e');
+    }
   }
 
   Future<void> markAllRead() async {
@@ -83,6 +86,8 @@ class NotificationController extends GetxController {
       }
       notifications.refresh();
       unreadCount.value = 0;
-    } catch (_) {}
+    } catch (e) {
+      debugPrint('NotificationController: Failed to mark all read: $e');
+    }
   }
 }

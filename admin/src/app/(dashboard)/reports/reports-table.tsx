@@ -14,7 +14,7 @@ import Link from "next/link";
 type ReportRow = {
   id: string;
   reason: string;
-  report_status: string;
+  status: string;
   created_at: string;
   reporter: { full_name: string } | null;
   reported: { full_name: string } | null;
@@ -39,11 +39,11 @@ const columns: ColumnDef<ReportRow, unknown>[] = [
     cell: ({ row }) => row.original.reported?.full_name || "Unknown",
   },
   {
-    accessorKey: "report_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.report_status] || ""}>
-        {row.original.report_status}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {row.original.status}
       </Badge>
     ),
   },

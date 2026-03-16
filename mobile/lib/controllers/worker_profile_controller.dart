@@ -44,16 +44,30 @@ class WorkerProfileController extends GetxController {
     }
   }
 
+  final RxBool isCategoriesLoading = false.obs;
+  final RxBool isSkillsLoading = false.obs;
+
   Future<void> loadCategories() async {
     try {
+      isCategoriesLoading.value = true;
       categories.assignAll(await _skillRepo.getCategories());
-    } catch (_) {}
+    } catch (e) {
+      AppSnackbar.error('Failed to load categories');
+    } finally {
+      isCategoriesLoading.value = false;
+    }
   }
 
   Future<void> loadSkillsByCategory(String categoryId) async {
     try {
+      isSkillsLoading.value = true;
+      skills.clear();
       skills.assignAll(await _skillRepo.getSkillsByCategory(categoryId));
-    } catch (_) {}
+    } catch (e) {
+      AppSnackbar.error('Failed to load skills');
+    } finally {
+      isSkillsLoading.value = false;
+    }
   }
 
   Future<void> toggleAvailability() async {
@@ -144,7 +158,9 @@ class WorkerProfileController extends GetxController {
       if (workerProfileId == null) return;
       final data = await _workerRepo.getSchedule(workerProfileId as String);
       schedule.assignAll(data);
-    } catch (_) {}
+    } catch (e) {
+      AppSnackbar.error('Failed to load schedule');
+    }
   }
 
   Future<void> updateScheduleDay({

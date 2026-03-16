@@ -11,6 +11,7 @@ class AppButton extends StatelessWidget {
   final bool isLoading;
   final bool isSmall;
   final IconData? icon;
+  final IconData? trailingIcon;
   final double? width;
 
   const AppButton({
@@ -21,6 +22,7 @@ class AppButton extends StatelessWidget {
     this.isLoading = false,
     this.isSmall = false,
     this.icon,
+    this.trailingIcon,
     this.width,
   });
 
@@ -45,7 +47,11 @@ class AppButton extends StatelessWidget {
                 Icon(icon, size: isSmall ? 18 : 20),
                 const SizedBox(width: 8),
               ],
-              Text(label, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w600)),
+              Text(label, style: TextStyle(fontSize: fontSize, fontWeight: FontWeight.w700)),
+              if (trailingIcon != null) ...[
+                const SizedBox(width: 8),
+                Icon(trailingIcon, size: isSmall ? 18 : 20),
+              ],
             ],
           );
 
@@ -53,10 +59,24 @@ class AppButton extends StatelessWidget {
 
     switch (type) {
       case AppButtonType.primary:
-        return ElevatedButton(
-          onPressed: isLoading ? null : onPressed,
-          style: ElevatedButton.styleFrom(minimumSize: minSize),
-          child: child,
+        return Container(
+          decoration: BoxDecoration(
+            borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+            boxShadow: onPressed != null && !isLoading
+                ? [
+                    BoxShadow(
+                      color: AppColors.primary.withValues(alpha: 0.25),
+                      blurRadius: 12,
+                      offset: const Offset(0, 4),
+                    ),
+                  ]
+                : null,
+          ),
+          child: ElevatedButton(
+            onPressed: isLoading ? null : onPressed,
+            style: ElevatedButton.styleFrom(minimumSize: minSize),
+            child: child,
+          ),
         );
       case AppButtonType.secondary:
         return ElevatedButton(

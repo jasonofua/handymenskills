@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class ChatRepository {
@@ -36,8 +34,8 @@ class ChatRepository {
       final response = await supabase
           .from('conversations')
           .select(
-              '*, participant1:profiles!conversations_participant1_id_fkey(*), participant2:profiles!conversations_participant2_id_fkey(*)')
-          .or('participant1_id.eq.$userId,participant2_id.eq.$userId')
+              '*, participant1:profiles!conversations_participant_one_fkey(*), participant2:profiles!conversations_participant_two_fkey(*)')
+          .or('participant_one.eq.$userId,participant_two.eq.$userId')
           .order('updated_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {

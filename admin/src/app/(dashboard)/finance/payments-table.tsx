@@ -11,11 +11,10 @@ import { statusColors } from "@/lib/constants";
 type PaymentRow = {
   id: string;
   amount: number;
-  platform_fee: number;
-  payment_status: string;
+  status: string;
+  payment_type: string;
   payment_method: string | null;
-  payment_reference: string | null;
-  paid_at: string | null;
+  paystack_reference: string | null;
   created_at: string;
   bookings: { id: string; jobs: { title: string } | null } | null;
   payer: { full_name: string } | null;
@@ -23,10 +22,10 @@ type PaymentRow = {
 
 const columns: ColumnDef<PaymentRow, unknown>[] = [
   {
-    accessorKey: "payment_reference",
+    accessorKey: "paystack_reference",
     header: "Reference",
     cell: ({ row }) => (
-      <span className="font-mono text-xs">{row.original.payment_reference || "N/A"}</span>
+      <span className="font-mono text-xs">{row.original.paystack_reference || "N/A"}</span>
     ),
   },
   {
@@ -45,9 +44,9 @@ const columns: ColumnDef<PaymentRow, unknown>[] = [
     cell: ({ row }) => formatNaira(row.original.amount),
   },
   {
-    accessorKey: "platform_fee",
-    header: "Platform Fee",
-    cell: ({ row }) => formatNaira(row.original.platform_fee),
+    accessorKey: "payment_type",
+    header: "Type",
+    cell: ({ row }) => row.original.payment_type?.replace(/_/g, " ") || "N/A",
   },
   {
     accessorKey: "payment_method",
@@ -55,18 +54,18 @@ const columns: ColumnDef<PaymentRow, unknown>[] = [
     cell: ({ row }) => row.original.payment_method || "N/A",
   },
   {
-    accessorKey: "payment_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.payment_status] || ""}>
-        {row.original.payment_status}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {row.original.status}
       </Badge>
     ),
   },
   {
     accessorKey: "created_at",
     header: "Date",
-    cell: ({ row }) => formatDate(row.original.paid_at || row.original.created_at),
+    cell: ({ row }) => formatDate(row.original.created_at),
   },
 ];
 
@@ -118,7 +117,7 @@ export function PaymentsTable({
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
           <option value="processing">Processing</option>
-          <option value="completed">Completed</option>
+          <option value="success">Success</option>
           <option value="failed">Failed</option>
           <option value="refunded">Refunded</option>
         </Select>

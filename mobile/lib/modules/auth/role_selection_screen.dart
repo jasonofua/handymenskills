@@ -87,7 +87,7 @@ class _RoleSelectionScreenState extends State<RoleSelectionScreen> {
 
               // Title
               Text(
-                'How will you use\nArtisan Marketplace?',
+                'How will you use\nHandymenskills?',
                 style: AppTextStyles.h2,
                 textAlign: TextAlign.center,
               ),

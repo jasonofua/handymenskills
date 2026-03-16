@@ -6,8 +6,8 @@ import '../controllers/auth_controller.dart';
 import '../modules/splash/splash_screen.dart';
 import '../modules/onboarding/onboarding_screen.dart';
 import '../modules/auth/login_screen.dart';
-import '../modules/auth/otp_screen.dart';
 import '../modules/auth/register_screen.dart';
+import '../modules/auth/forgot_password_screen.dart';
 import '../modules/auth/role_selection_screen.dart';
 import '../modules/worker/dashboard/worker_dashboard_screen.dart';
 import '../modules/worker/job_feed/job_feed_screen.dart';
@@ -28,6 +28,8 @@ import '../modules/client/find_workers/find_workers_screen.dart';
 import '../modules/client/find_workers/worker_profile_view_screen.dart';
 import '../modules/client/bookings/client_bookings_screen.dart';
 import '../modules/client/bookings/client_booking_detail_screen.dart';
+import '../modules/client/post_job/job_posted_success_screen.dart';
+import '../modules/client/post_job/edit_job_screen.dart';
 import '../modules/shared/chat/conversations_screen.dart';
 import '../modules/shared/chat/chat_screen.dart';
 import '../modules/shared/notifications/notifications_screen.dart';
@@ -39,7 +41,6 @@ import '../modules/shared/report/report_screen.dart';
 import '../modules/shared/disputes/disputes_list_screen.dart';
 import '../modules/shared/disputes/create_dispute_screen.dart';
 import '../modules/shared/disputes/dispute_detail_screen.dart';
-import '../modules/shared/map/map_screen.dart';
 import '../widgets/navigation/worker_bottom_nav.dart';
 import '../widgets/navigation/client_bottom_nav.dart';
 import 'app_routes.dart';
@@ -49,7 +50,7 @@ final _workerShellKey = GlobalKey<NavigatorState>();
 final _clientShellKey = GlobalKey<NavigatorState>();
 
 class AppRouter {
-  static GoRouter get router => GoRouter(
+  static final GoRouter router = GoRouter(
     navigatorKey: _rootNavigatorKey,
     initialLocation: AppRoutes.splash,
     redirect: _redirect,
@@ -58,8 +59,8 @@ class AppRouter {
       GoRoute(path: AppRoutes.splash, builder: (_, __) => const SplashScreen()),
       GoRoute(path: AppRoutes.onboarding, builder: (_, __) => const OnboardingScreen()),
       GoRoute(path: AppRoutes.login, builder: (_, __) => const LoginScreen()),
-      GoRoute(path: AppRoutes.otp, builder: (_, state) => OtpScreen(phone: state.extra as String)),
       GoRoute(path: AppRoutes.register, builder: (_, __) => const RegisterScreen()),
+      GoRoute(path: AppRoutes.forgotPassword, builder: (_, __) => const ForgotPasswordScreen()),
       GoRoute(path: AppRoutes.roleSelection, builder: (_, __) => const RoleSelectionScreen()),
 
       // Worker shell with bottom navigation
@@ -98,8 +99,16 @@ class AppRouter {
 
       // Client detail routes
       GoRoute(path: '/client/my-jobs/:id', builder: (_, state) => ClientJobDetailScreen(jobId: state.pathParameters['id']!)),
+      GoRoute(path: '/client/edit-job/:id', builder: (_, state) => EditJobScreen(jobId: state.pathParameters['id']!)),
       GoRoute(path: '/client/workers/:id', builder: (_, state) => WorkerProfileViewScreen(workerId: state.pathParameters['id']!)),
       GoRoute(path: '/client/bookings/:id', builder: (_, state) => ClientBookingDetailScreen(bookingId: state.pathParameters['id']!)),
+      GoRoute(
+        path: AppRoutes.clientJobPostedSuccess,
+        builder: (_, state) => JobPostedSuccessScreen(
+          jobId: state.uri.queryParameters['jobId'],
+          jobTitle: state.uri.queryParameters['jobTitle'],
+        ),
+      ),
 
       // Shared routes
       GoRoute(path: AppRoutes.chat, builder: (_, __) => const ConversationsScreen()),
@@ -113,7 +122,6 @@ class AppRouter {
       GoRoute(path: AppRoutes.disputes, builder: (_, __) => const DisputesListScreen()),
       GoRoute(path: '/dispute/create/:bookingId', builder: (_, state) => CreateDisputeScreen(bookingId: state.pathParameters['bookingId']!)),
       GoRoute(path: '/dispute/:id', builder: (_, state) => DisputeDetailScreen(disputeId: state.pathParameters['id']!)),
-      GoRoute(path: AppRoutes.mapView, builder: (_, __) => const MapScreen()),
     ],
   );
 
@@ -125,8 +133,8 @@ class AppRouter {
     final isAuthRoute = location == AppRoutes.splash ||
         location == AppRoutes.onboarding ||
         location == AppRoutes.login ||
-        location == AppRoutes.otp ||
         location == AppRoutes.register ||
+        location == AppRoutes.forgotPassword ||
         location == AppRoutes.roleSelection;
 
     // Not logged in and not on an auth route → redirect to login
@@ -135,11 +143,10 @@ class AppRouter {
     }
 
     // Logged in and on login page → redirect to appropriate dashboard
-    if (isLoggedIn && (location == AppRoutes.login || location == AppRoutes.otp)) {
+    if (isLoggedIn && location == AppRoutes.login) {
       final role = authController.userRole.value;
       if (role == 'worker') return AppRoutes.workerDashboard;
-      if (role == 'client') return AppRoutes.clientDashboard;
-      return AppRoutes.roleSelection;
+      return AppRoutes.clientDashboard;
     }
 
     return null;

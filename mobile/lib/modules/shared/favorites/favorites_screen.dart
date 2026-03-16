@@ -8,6 +8,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../data/repositories/favorite_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_avatar.dart';
+import '../../../widgets/common/app_button.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_empty_state.dart';
 import '../../../widgets/common/app_loading.dart';
@@ -67,7 +68,7 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     try {
       await _favoriteRepo.unsaveWorker(workerId);
       if (mounted) {
-        AppSnackbar.success('Worker removed from saved');
+        AppSnackbar.success('Worker removed from favorites');
       }
     } catch (e) {
       // Restore on failure
@@ -83,8 +84,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
-        title: const Text('Saved Workers'),
+        leading: IconButton(
+          icon: const Icon(Icons.arrow_back),
+          onPressed: () => context.pop(),
+        ),
+        title: const Text('My Favorites', style: AppTextStyles.h4),
       ),
       body: _buildBody(),
     );
@@ -97,29 +103,43 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     if (_error != null) {
       return Center(
-        child: Column(
-          mainAxisAlignment: MainAxisAlignment.center,
-          children: [
-            const Icon(
-              Icons.error_outline,
-              size: 64,
-              color: AppColors.error,
-            ),
-            const SizedBox(height: AppDimensions.md),
-            Text(
-              _error!,
-              style: AppTextStyles.bodyMedium.copyWith(
-                color: AppColors.textSecondary,
+        child: Padding(
+          padding: const EdgeInsets.all(AppDimensions.xl),
+          child: Column(
+            mainAxisAlignment: MainAxisAlignment.center,
+            children: [
+              Container(
+                width: 72,
+                height: 72,
+                decoration: BoxDecoration(
+                  color: AppColors.error.withValues(alpha: 0.08),
+                  shape: BoxShape.circle,
+                ),
+                child: const Icon(
+                  Icons.error_outline,
+                  size: 36,
+                  color: AppColors.error,
+                ),
               ),
-              textAlign: TextAlign.center,
-            ),
-            const SizedBox(height: AppDimensions.md),
-            OutlinedButton.icon(
-              onPressed: _loadFavorites,
-              icon: const Icon(Icons.refresh),
-              label: const Text('Retry'),
-            ),
-          ],
+              const SizedBox(height: AppDimensions.md),
+              Text(
+                _error!,
+                style: AppTextStyles.bodyMedium.copyWith(
+                  color: AppColors.textSecondary,
+                ),
+                textAlign: TextAlign.center,
+              ),
+              const SizedBox(height: AppDimensions.lg),
+              AppButton(
+                label: 'Retry',
+                type: AppButtonType.outline,
+                icon: Icons.refresh,
+                isSmall: true,
+                width: 140,
+                onPressed: _loadFavorites,
+              ),
+            ],
+          ),
         ),
       );
     }
@@ -127,12 +147,13 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
     if (_savedWorkers.isEmpty) {
       return RefreshIndicator(
         onRefresh: _loadFavorites,
+        color: AppColors.primary,
         child: ListView(
           children: const [
             SizedBox(height: 120),
             AppEmptyState(
               icon: Icons.favorite_border,
-              title: 'No saved workers',
+              title: 'No favorites yet',
               subtitle:
                   'Save workers you like to quickly find them later.',
             ),
@@ -143,18 +164,15 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
 
     return RefreshIndicator(
       onRefresh: _loadFavorites,
-      child: GridView.builder(
+      color: AppColors.primary,
+      child: ListView.separated(
         padding: const EdgeInsets.all(AppDimensions.screenPadding),
-        gridDelegate: const SliverGridDelegateWithFixedCrossAxisCount(
-          crossAxisCount: 2,
-          mainAxisSpacing: AppDimensions.md,
-          crossAxisSpacing: AppDimensions.md,
-          childAspectRatio: 0.78,
-        ),
         itemCount: _savedWorkers.length,
+        separatorBuilder: (_, __) =>
+            const SizedBox(height: AppDimensions.md),
         itemBuilder: (context, index) {
           final savedEntry = _savedWorkers[index];
-          return _SavedWorkerCard(
+          return _FavoriteWorkerCard(
             savedEntry: savedEntry,
             onTap: () {
               final profile =
@@ -182,12 +200,12 @@ class _FavoritesScreenState extends State<FavoritesScreen> {
   }
 }
 
-class _SavedWorkerCard extends StatelessWidget {
+class _FavoriteWorkerCard extends StatelessWidget {
   final Map<String, dynamic> savedEntry;
   final VoidCallback onTap;
   final VoidCallback onUnsave;
 
-  const _SavedWorkerCard({
+  const _FavoriteWorkerCard({
     required this.savedEntry,
     required this.onTap,
     required this.onUnsave,
@@ -207,93 +225,142 @@ class _SavedWorkerCard extends StatelessWidget {
         (workerProfile['average_rating'] as num?)?.toDouble() ?? 0.0;
     final int reviewCount =
         (workerProfile['review_count'] as num?)?.toInt() ?? 0;
+    final String? location = profile['city'] as String?;
 
     return AppCard(
       onTap: onTap,
-      padding: const EdgeInsets.all(AppDimensions.md),
+      padding: const EdgeInsets.all(AppDimensions.cardPadding),
       child: Column(
-        mainAxisAlignment: MainAxisAlignment.center,
         children: [
-          // Unsave button at top right
-          Align(
-            alignment: Alignment.topRight,
-            child: GestureDetector(
-              onTap: onUnsave,
-              child: Container(
-                padding: const EdgeInsets.all(4),
-                decoration: BoxDecoration(
-                  color: AppColors.error.withValues(alpha: 0.1),
-                  shape: BoxShape.circle,
-                ),
-                child: const Icon(
-                  Icons.favorite,
-                  size: 18,
-                  color: AppColors.error,
+          Row(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              // Avatar
+              AppAvatar(
+                imageUrl: avatarUrl,
+                name: name,
+                size: AppDimensions.avatarLg,
+              ),
+              const SizedBox(width: AppDimensions.md),
+
+              // Info
+              Expanded(
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Row(
+                      children: [
+                        Expanded(
+                          child: Text(
+                            name,
+                            style: AppTextStyles.labelLarge.copyWith(
+                              fontSize: 16,
+                            ),
+                            maxLines: 1,
+                            overflow: TextOverflow.ellipsis,
+                          ),
+                        ),
+                        // Heart icon
+                        GestureDetector(
+                          onTap: onUnsave,
+                          child: Container(
+                            padding: const EdgeInsets.all(6),
+                            decoration: BoxDecoration(
+                              color: AppColors.primary.withValues(alpha: 0.08),
+                              shape: BoxShape.circle,
+                            ),
+                            child: const Icon(
+                              Icons.favorite,
+                              size: 18,
+                              color: AppColors.primary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+
+                    if (headline.isNotEmpty) ...[
+                      const SizedBox(height: 2),
+                      Text(
+                        headline,
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                        ),
+                        maxLines: 2,
+                        overflow: TextOverflow.ellipsis,
+                      ),
+                    ],
+
+                    const SizedBox(height: AppDimensions.sm),
+
+                    // Rating row
+                    Row(
+                      children: [
+                        if (rating > 0) ...[
+                          const Icon(
+                            Icons.star,
+                            size: 16,
+                            color: AppColors.ratingStar,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            rating.toStringAsFixed(1),
+                            style: AppTextStyles.labelMedium.copyWith(
+                              color: AppColors.textPrimary,
+                            ),
+                          ),
+                          if (reviewCount > 0) ...[
+                            const SizedBox(width: 4),
+                            Text(
+                              '($reviewCount ${reviewCount == 1 ? 'review' : 'reviews'})',
+                              style: AppTextStyles.caption,
+                            ),
+                          ],
+                        ] else
+                          Text(
+                            'No ratings yet',
+                            style: AppTextStyles.caption,
+                          ),
+                      ],
+                    ),
+
+                    if (location != null && location.isNotEmpty) ...[
+                      const SizedBox(height: AppDimensions.xs),
+                      Row(
+                        children: [
+                          const Icon(
+                            Icons.location_on_outlined,
+                            size: 14,
+                            color: AppColors.textHint,
+                          ),
+                          const SizedBox(width: 3),
+                          Text(
+                            location,
+                            style: AppTextStyles.caption.copyWith(
+                              color: AppColors.textHint,
+                            ),
+                          ),
+                        ],
+                      ),
+                    ],
+                  ],
                 ),
               ),
-            ),
+            ],
           ),
 
-          AppAvatar(
-            imageUrl: avatarUrl,
-            name: name,
-            size: AppDimensions.avatarLg,
-          ),
-          const SizedBox(height: AppDimensions.sm),
+          const SizedBox(height: AppDimensions.md),
 
-          Text(
-            name,
-            style: AppTextStyles.labelLarge,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
-            textAlign: TextAlign.center,
-          ),
-
-          if (headline.isNotEmpty) ...[
-            const SizedBox(height: 2),
-            Text(
-              headline,
-              style: AppTextStyles.bodySmall,
-              maxLines: 2,
-              overflow: TextOverflow.ellipsis,
-              textAlign: TextAlign.center,
+          // View Profile button
+          SizedBox(
+            width: double.infinity,
+            child: AppButton(
+              label: 'View Profile',
+              type: AppButtonType.outline,
+              isSmall: true,
+              onPressed: onTap,
             ),
-          ],
-
-          const SizedBox(height: AppDimensions.sm),
-
-          // Rating row
-          if (rating > 0)
-            Row(
-              mainAxisAlignment: MainAxisAlignment.center,
-              mainAxisSize: MainAxisSize.min,
-              children: [
-                const Icon(
-                  Icons.star,
-                  size: 16,
-                  color: AppColors.ratingStar,
-                ),
-                const SizedBox(width: 2),
-                Text(
-                  rating.toStringAsFixed(1),
-                  style: AppTextStyles.labelMedium.copyWith(
-                    color: AppColors.textPrimary,
-                  ),
-                ),
-                if (reviewCount > 0) ...[
-                  const SizedBox(width: 4),
-                  Text(
-                    '($reviewCount)',
-                    style: AppTextStyles.caption,
-                  ),
-                ],
-              ],
-            )
-          else
-            Text(
-              'No ratings yet',
-              style: AppTextStyles.caption,
-            ),
+          ),
         ],
       ),
     );

@@ -3,6 +3,8 @@ import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
 
 import '../../../controllers/booking_controller.dart';
+import '../../../controllers/chat_controller.dart';
+import '../../../controllers/payment_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -31,7 +33,9 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _bookingController.loadBookingDetail(widget.bookingId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bookingController.loadBookingDetail(widget.bookingId);
+    });
   }
 
   @override
@@ -266,7 +270,7 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
           InkWell(
             onTap: () {
               if (workerId.isNotEmpty) {
-                context.push('/client/workers/$workerId');
+                context.push(AppRoutes.clientWorkerProfile.replaceFirst(':id', workerId));
               }
             },
             child: Row(
@@ -391,7 +395,6 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
   Widget _buildActionButtons(Map<String, dynamic> booking) {
     final status = booking['status']?.toString() ?? 'pending';
     final bookingId = widget.bookingId;
-    final workerId = booking['worker_id']?.toString() ?? '';
     final hasReview = (booking['reviews'] as List?)?.isNotEmpty ?? false;
 
     return Column(
@@ -431,7 +434,7 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
             height: AppDimensions.buttonHeight,
             child: ElevatedButton.icon(
               onPressed: () {
-                context.push('/reviews/write/$bookingId');
+                context.push(AppRoutes.writeReview.replaceFirst(':bookingId', bookingId));
               },
               icon: const Icon(Icons.rate_review),
               label: const Text('Write Review'),
@@ -451,7 +454,15 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
           SizedBox(
             height: AppDimensions.buttonHeight,
             child: OutlinedButton.icon(
-              onPressed: () => context.push(AppRoutes.chat),
+              onPressed: () async {
+                final workerId = _bookingController.currentBooking['worker_id']?.toString() ?? '';
+                if (workerId.isEmpty) return;
+                final chatController = Get.find<ChatController>();
+                final conversationId = await chatController.startConversation(workerId);
+                if (conversationId != null && context.mounted) {
+                  context.push(AppRoutes.chatConversation.replaceFirst(':id', conversationId));
+                }
+              },
               icon: const Icon(Icons.chat_outlined),
               label: const Text('Chat with Worker'),
               style: OutlinedButton.styleFrom(
@@ -493,7 +504,7 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
             height: AppDimensions.buttonSmallHeight,
             child: TextButton.icon(
               onPressed: () {
-                context.push('/dispute/create/$bookingId');
+                context.push(AppRoutes.createDispute.replaceFirst(':bookingId', bookingId));
               },
               icon: const Icon(Icons.flag_outlined, size: 18, color: AppColors.error),
               label: const Text(
@@ -531,12 +542,33 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
     );
 
     if (confirmed == true) {
-      final success = await _bookingController.processAction(
-        'client_confirm',
-        bookingId,
+      final agreedPrice = _bookingController.currentBooking['agreed_price'];
+      final amount = (agreedPrice is num)
+          ? agreedPrice.toDouble()
+          : double.tryParse(agreedPrice.toString()) ?? 0.0;
+
+      if (amount <= 0) {
+        AppSnackbar.error('Invalid payment amount');
+        return;
+      }
+
+      if (!mounted) return;
+
+      final paymentSuccess = await Get.find<PaymentController>().processPayment(
+        context: context,
+        amountInNaira: amount,
+        paymentType: 'booking',
+        bookingId: bookingId,
       );
-      if (success && mounted) {
-        AppSnackbar.success('Payment confirmed successfully');
+
+      if (paymentSuccess) {
+        final success = await _bookingController.processAction(
+          'client_confirm',
+          bookingId,
+        );
+        if (success && mounted) {
+          AppSnackbar.success('Payment confirmed successfully');
+        }
       }
     }
   }

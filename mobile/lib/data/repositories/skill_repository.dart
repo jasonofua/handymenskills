@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class SkillRepository {
@@ -45,6 +43,21 @@ class SkillRepository {
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
       throw Exception('Failed to get all skills: $e');
+    }
+  }
+
+  /// Fetches skill names for the given list of [ids].
+  Future<List<String>> getSkillNamesByIds(List<String> ids) async {
+    if (ids.isEmpty) return [];
+    try {
+      final response = await supabase
+          .from('skills')
+          .select('id, name')
+          .inFilter('id', ids);
+      final results = List<Map<String, dynamic>>.from(response);
+      return results.map((r) => r['name']?.toString() ?? '').toList();
+    } catch (e) {
+      return [];
     }
   }
 

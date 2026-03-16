@@ -6,6 +6,8 @@ import '../../../controllers/job_controller.dart';
 import '../../../controllers/booking_controller.dart';
 import '../../../controllers/notification_controller.dart';
 import '../../../controllers/auth_controller.dart';
+import '../../../controllers/payment_controller.dart';
+import '../../../widgets/common/app_snackbar.dart';
 import '../../../routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -13,9 +15,9 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_badge.dart';
-import '../../../widgets/common/app_status_badge.dart';
+import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_shimmer.dart';
-import '../../../widgets/common/app_empty_state.dart';
+import 'package:timeago/timeago.dart' as timeago;
 
 class ClientDashboardScreen extends StatefulWidget {
   const ClientDashboardScreen({super.key});
@@ -29,11 +31,15 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   final _bookingController = Get.find<BookingController>();
   final _notificationController = Get.find<NotificationController>();
   final _authController = Get.find<AuthController>();
+  final _paymentController = Get.find<PaymentController>();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+      _paymentController.loadWalletBalance();
+    });
   }
 
   Future<void> _loadData() async {
@@ -46,108 +52,68 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
-      appBar: AppBar(
-        title: Obx(() => Text(
-          'Hello, ${_authController.userName.isNotEmpty ? _authController.userName.split(' ').first : 'there'}',
-        )),
-        actions: [
-          Obx(() => IconButton(
-            onPressed: () => context.push(AppRoutes.notifications),
-            icon: AppBadge(
-              count: _notificationController.unreadCount.value,
-              child: const Icon(Icons.notifications_outlined),
+      body: SafeArea(
+        child: RefreshIndicator(
+          onRefresh: _loadData,
+          child: SingleChildScrollView(
+            physics: const AlwaysScrollableScrollPhysics(),
+            padding: const EdgeInsets.all(AppDimensions.screenPadding),
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                _buildHeader(),
+                const SizedBox(height: AppDimensions.lg),
+                _buildStatsRow(),
+                const SizedBox(height: AppDimensions.lg),
+                _buildQuickActions(),
+                const SizedBox(height: AppDimensions.lg),
+                _buildWalletCard(),
+                const SizedBox(height: AppDimensions.lg),
+                _buildRecentActivity(),
+              ],
             ),
-          )),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: SingleChildScrollView(
-          physics: const AlwaysScrollableScrollPhysics(),
-          padding: const EdgeInsets.all(AppDimensions.screenPadding),
-          child: Column(
-            crossAxisAlignment: CrossAxisAlignment.start,
-            children: [
-              _buildPostJobCta(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildStatsRow(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildActiveJobsSection(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildRecentBookingsSection(),
-            ],
           ),
         ),
       ),
     );
   }
 
-  Widget _buildPostJobCta() {
-    return AppCard(
-      color: AppColors.primary,
-      onTap: () => context.push(AppRoutes.clientPostJob),
-      child: Row(
-        children: [
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  'Need something done?',
-                  style: AppTextStyles.h4.copyWith(color: AppColors.white),
-                ),
-                const SizedBox(height: AppDimensions.xs),
-                Text(
-                  'Post a job and find skilled artisans near you.',
-                  style: AppTextStyles.bodySmall.copyWith(
-                    color: AppColors.white.withValues(alpha: 0.85),
-                  ),
-                ),
-                const SizedBox(height: AppDimensions.md),
-                Container(
-                  padding: const EdgeInsets.symmetric(
-                    horizontal: AppDimensions.md,
-                    vertical: AppDimensions.sm,
-                  ),
-                  decoration: BoxDecoration(
-                    color: AppColors.white,
-                    borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
-                  ),
-                  child: const Row(
-                    mainAxisSize: MainAxisSize.min,
-                    children: [
-                      Icon(Icons.add, size: 18, color: AppColors.primary),
-                      SizedBox(width: 6),
-                      Text(
-                        'Post a Job',
-                        style: TextStyle(
-                          color: AppColors.primary,
-                          fontWeight: FontWeight.w600,
-                          fontSize: 14,
-                        ),
-                      ),
-                    ],
-                  ),
-                ),
-              ],
+  Widget _buildHeader() {
+    return Obx(() => Row(
+          children: [
+            AppAvatar(
+              imageUrl: _authController.userAvatar,
+              name: _authController.userName,
+              size: AppDimensions.avatarMd,
             ),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Container(
-            padding: const EdgeInsets.all(AppDimensions.md),
-            decoration: BoxDecoration(
-              color: AppColors.white.withValues(alpha: 0.15),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusLg),
+            const SizedBox(width: AppDimensions.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'WELCOME BACK',
+                    style: AppTextStyles.sectionHeader.copyWith(
+                      color: AppColors.textHint,
+                      fontSize: 11,
+                    ),
+                  ),
+                  Text(
+                    'Hello, ${_authController.userName.isNotEmpty ? _authController.userName.split(' ').first : 'there'}',
+                    style: AppTextStyles.h3,
+                  ),
+                ],
+              ),
             ),
-            child: const Icon(
-              Icons.work_outline,
-              size: 48,
-              color: AppColors.white,
+            IconButton(
+              onPressed: () => context.push(AppRoutes.notifications),
+              icon: AppBadge(
+                count: _notificationController.unreadCount.value,
+                child: const Icon(Icons.notifications_outlined, size: 28),
+              ),
             ),
-          ),
-        ],
-      ),
-    );
+          ],
+        ));
   }
 
   Widget _buildStatsRow() {
@@ -155,47 +121,45 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
       final jobs = _jobController.myJobs;
       final bookings = _bookingController.bookings;
 
-      final activeJobs = jobs.where((j) =>
-        j['status'] == 'open' ||
-        j['status'] == 'assigned' ||
-        j['status'] == 'in_progress'
-      ).length;
+      final activeJobs = jobs
+          .where((j) =>
+              j['status'] == 'open' ||
+              j['status'] == 'assigned' ||
+              j['status'] == 'in_progress')
+          .length;
 
-      final totalBookings = bookings.length;
+      final pendingBookings =
+          bookings.where((b) => b['status'] == 'pending').length;
 
-      final totalSpent = bookings
-          .where((b) => b['status'] == 'client_confirmed' || b['status'] == 'completed')
-          .fold<double>(0.0, (sum, b) {
-            final price = b['agreed_price'] ?? b['jobs']?['budget_max'] ?? 0;
-            return sum + (price is num ? price.toDouble() : 0.0);
-          });
+      final completedJobs =
+          jobs.where((j) => j['status'] == 'completed').length;
 
       return Row(
         children: [
           Expanded(
-            child: _StatCard(
+            child: _StatCircle(
               label: 'Active Jobs',
               value: activeJobs.toString(),
               icon: Icons.work_outline,
-              color: AppColors.info,
+              color: AppColors.primary,
             ),
           ),
           const SizedBox(width: AppDimensions.sm),
           Expanded(
-            child: _StatCard(
-              label: 'Bookings',
-              value: totalBookings.toString(),
-              icon: Icons.calendar_today_outlined,
+            child: _StatCircle(
+              label: 'Pending',
+              value: pendingBookings.toString(),
+              icon: Icons.schedule_outlined,
               color: AppColors.secondary,
             ),
           ),
           const SizedBox(width: AppDimensions.sm),
           Expanded(
-            child: _StatCard(
-              label: 'Spent',
-              value: '${AppConstants.currencySymbol}${_formatAmount(totalSpent)}',
-              icon: Icons.account_balance_wallet_outlined,
-              color: AppColors.primary,
+            child: _StatCircle(
+              label: 'Completed',
+              value: completedJobs.toString(),
+              icon: Icons.check_circle_outline,
+              color: AppColors.success,
             ),
           ),
         ],
@@ -203,26 +167,197 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
     });
   }
 
-  String _formatAmount(double amount) {
-    if (amount >= 1000000) {
-      return '${(amount / 1000000).toStringAsFixed(1)}M';
-    }
-    if (amount >= 1000) {
-      return '${(amount / 1000).toStringAsFixed(1)}K';
-    }
-    return amount.toStringAsFixed(0);
+  Widget _buildQuickActions() {
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('Quick Actions', style: AppTextStyles.h4),
+        const SizedBox(height: AppDimensions.md),
+        Row(
+          children: [
+            Expanded(
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.clientPostJob),
+                child: Container(
+                  padding: const EdgeInsets.all(AppDimensions.lg),
+                  decoration: BoxDecoration(
+                    color: AppColors.primary,
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.cardRadius),
+                  ),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withValues(alpha: 0.2),
+                          borderRadius:
+                              BorderRadius.circular(AppDimensions.radiusSm),
+                        ),
+                        child: const Icon(Icons.add, color: AppColors.white),
+                      ),
+                      const SizedBox(height: AppDimensions.md),
+                      const Text(
+                        'Post a Job',
+                        style: TextStyle(
+                          color: AppColors.white,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+            const SizedBox(width: AppDimensions.md),
+            Expanded(
+              child: GestureDetector(
+                onTap: () => context.push(AppRoutes.clientFindWorkers),
+                child: AppCard(
+                  padding: const EdgeInsets.all(AppDimensions.lg),
+                  child: Column(
+                    crossAxisAlignment: CrossAxisAlignment.start,
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color:
+                              AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius:
+                              BorderRadius.circular(AppDimensions.radiusSm),
+                        ),
+                        child: const Icon(Icons.groups_outlined,
+                            color: AppColors.primary),
+                      ),
+                      const SizedBox(height: AppDimensions.md),
+                      const Text(
+                        'Find Workers',
+                        style: TextStyle(
+                          color: AppColors.textPrimary,
+                          fontSize: 16,
+                          fontWeight: FontWeight.w700,
+                        ),
+                      ),
+                    ],
+                  ),
+                ),
+              ),
+            ),
+          ],
+        ),
+      ],
+    );
   }
 
-  Widget _buildActiveJobsSection() {
+  Widget _buildWalletCard() {
+    return Container(
+      padding: const EdgeInsets.all(AppDimensions.lg),
+      decoration: BoxDecoration(
+        color: const Color(0xFF1E293B),
+        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+      ),
+      child: Row(
+        children: [
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'WALLET BALANCE',
+                  style: AppTextStyles.sectionHeader.copyWith(
+                    color: AppColors.white.withValues(alpha: 0.6),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.sm),
+                Obx(() => Text(
+                  '${AppConstants.currencySymbol}${_paymentController.walletBalance.value.toStringAsFixed(2)}',
+                  style: AppTextStyles.priceHero.copyWith(
+                    color: AppColors.white,
+                  ),
+                )),
+              ],
+            ),
+          ),
+          ElevatedButton(
+            onPressed: () => _showTopUpDialog(),
+            style: ElevatedButton.styleFrom(
+              backgroundColor: AppColors.primary,
+              minimumSize: const Size(0, 40),
+              padding: const EdgeInsets.symmetric(
+                  horizontal: 20, vertical: 10),
+              shape: RoundedRectangleBorder(
+                borderRadius:
+                    BorderRadius.circular(AppDimensions.radiusSm),
+              ),
+            ),
+            child: const Text('Top Up',
+                style: TextStyle(
+                    fontWeight: FontWeight.w700, color: AppColors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  void _showTopUpDialog() {
+    final amountController = TextEditingController();
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Top Up Wallet'),
+        content: TextField(
+          controller: amountController,
+          keyboardType: TextInputType.number,
+          decoration: InputDecoration(
+            prefixText: '${AppConstants.currencySymbol} ',
+            hintText: 'Enter amount',
+          ),
+        ),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          ElevatedButton(
+            onPressed: () async {
+              final amount = double.tryParse(amountController.text.trim()) ?? 0.0;
+              if (amount <= 0) {
+                AppSnackbar.error('Please enter a valid amount');
+                return;
+              }
+              Navigator.pop(ctx);
+              final success = await _paymentController.processPayment(
+                context: context,
+                amountInNaira: amount,
+                paymentType: 'wallet_topup',
+              );
+              if (success) {
+                AppSnackbar.success('Wallet topped up successfully');
+                await _paymentController.loadWalletBalance();
+              }
+            },
+            style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+            child: const Text('Top Up', style: TextStyle(color: AppColors.white)),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildRecentActivity() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Active Jobs', style: AppTextStyles.h4),
+            const Text('Recent Activity', style: AppTextStyles.h4),
             TextButton(
-              onPressed: () => context.push(AppRoutes.clientMyJobs),
+              onPressed: () => context.push(AppRoutes.notifications),
               child: const Text('View All'),
             ),
           ],
@@ -230,125 +365,190 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
         const SizedBox(height: AppDimensions.sm),
         Obx(() {
           if (_jobController.isLoadingMyJobs.value) {
-            return SizedBox(
-              height: 160,
-              child: ListView.separated(
-                scrollDirection: Axis.horizontal,
-                itemCount: 3,
-                separatorBuilder: (_, __) =>
-                    const SizedBox(width: AppDimensions.sm),
-                itemBuilder: (_, __) => AppShimmer(
-                  width: 260,
-                  height: 160,
-                  borderRadius: AppDimensions.cardRadius,
+            return AppShimmer.list(count: 3);
+          }
+
+          final jobs = _jobController.myJobs;
+          final bookings = _bookingController.bookings;
+          final balance = _paymentController.walletBalance.value;
+
+          // Build activity items from recent jobs, bookings, and payments
+          final activities = <Map<String, dynamic>>[];
+
+          // Show recently posted jobs
+          for (final job in jobs.take(3)) {
+            final title = job['title'] ?? 'Job';
+            final status = job['status']?.toString() ?? '';
+            final jobTime = _formatTime(job['created_at']);
+            final appCount =
+                (job['applications'] as List?)?.length ??
+                    job['application_count'] ??
+                    0;
+            if (appCount > 0) {
+              activities.add({
+                'icon': Icons.person_add_outlined,
+                'color': AppColors.info,
+                'title': 'New application received',
+                'description': 'Application for \'$title\'',
+                'time': jobTime,
+              });
+            } else if (status == 'open') {
+              activities.add({
+                'icon': Icons.work_outline,
+                'color': AppColors.primary,
+                'title': 'Job posted',
+                'description': '\'$title\' is live and accepting applications',
+                'time': jobTime,
+              });
+            }
+          }
+
+          // Show wallet top-up if balance > 0
+          if (balance > 0) {
+            activities.add({
+              'icon': Icons.account_balance_wallet_outlined,
+              'color': AppColors.success,
+              'title': 'Wallet funded',
+              'description':
+                  'Balance: ${AppConstants.currencySymbol}${balance.toStringAsFixed(2)}',
+              'time': _formatTime(_paymentController.lastTopUpTime.value),
+            });
+          }
+
+          for (final booking in bookings.take(3)) {
+            final status = booking['status']?.toString() ?? '';
+            final bookingTime = _formatTime(booking['created_at']);
+            if (status == 'confirmed') {
+              activities.add({
+                'icon': Icons.check_circle_outline,
+                'color': AppColors.success,
+                'title': 'Booking confirmed',
+                'description':
+                    'Your booking has been confirmed',
+                'time': bookingTime,
+              });
+            } else if (status == 'completed') {
+              activities.add({
+                'icon': Icons.payments_outlined,
+                'color': AppColors.primary,
+                'title': 'Payment Successful',
+                'description':
+                    'Payment for service completed',
+                'time': bookingTime,
+              });
+            } else if (status == 'pending') {
+              activities.add({
+                'icon': Icons.schedule_outlined,
+                'color': AppColors.secondary,
+                'title': 'Booking pending',
+                'description': 'Waiting for worker confirmation',
+                'time': bookingTime,
+              });
+            }
+          }
+
+          if (activities.isEmpty) {
+            return AppCard(
+              child: Padding(
+                padding: const EdgeInsets.all(AppDimensions.md),
+                child: Row(
+                  children: [
+                    Icon(Icons.history,
+                        color: AppColors.textHint, size: 40),
+                    const SizedBox(width: AppDimensions.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text('No recent activity',
+                              style: AppTextStyles.labelLarge),
+                          const SizedBox(height: 4),
+                          Text('Your activity will appear here',
+                              style: AppTextStyles.bodySmall),
+                        ],
+                      ),
+                    ),
+                  ],
                 ),
               ),
             );
           }
 
-          final activeJobs = _jobController.myJobs.where((j) =>
-            j['status'] == 'open' ||
-            j['status'] == 'assigned' ||
-            j['status'] == 'in_progress'
-          ).toList();
-
-          if (activeJobs.isEmpty) {
-            return const AppEmptyState(
-              icon: Icons.work_off_outlined,
-              title: 'No active jobs',
-              subtitle: 'Post a job to get started',
-            );
-          }
-
-          return SizedBox(
-            height: 170,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: activeJobs.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(width: AppDimensions.sm),
-              itemBuilder: (_, index) {
-                final job = activeJobs[index];
-                return _ActiveJobCard(
-                  job: job,
-                  onTap: () {
-                    final id = job['id']?.toString() ?? '';
-                    context.push('/client/my-jobs/$id');
-                  },
-                );
-              },
-            ),
+          return Column(
+            children: activities.take(5).map((activity) {
+              return Padding(
+                padding:
+                    const EdgeInsets.only(bottom: AppDimensions.sm),
+                child: AppCard(
+                  child: Row(
+                    children: [
+                      Container(
+                        width: 44,
+                        height: 44,
+                        decoration: BoxDecoration(
+                          color: (activity['color'] as Color)
+                              .withValues(alpha: 0.1),
+                          shape: BoxShape.circle,
+                        ),
+                        child: Icon(
+                          activity['icon'] as IconData,
+                          color: activity['color'] as Color,
+                          size: 22,
+                        ),
+                      ),
+                      const SizedBox(width: AppDimensions.md),
+                      Expanded(
+                        child: Column(
+                          crossAxisAlignment:
+                              CrossAxisAlignment.start,
+                          children: [
+                            Text(
+                              activity['title'] as String,
+                              style: AppTextStyles.labelLarge,
+                            ),
+                            const SizedBox(height: 2),
+                            Text(
+                              activity['description'] as String,
+                              style: AppTextStyles.bodySmall,
+                              maxLines: 2,
+                              overflow: TextOverflow.ellipsis,
+                            ),
+                          ],
+                        ),
+                      ),
+                      Text(
+                        activity['time'] as String,
+                        style: AppTextStyles.caption,
+                      ),
+                    ],
+                  ),
+                ),
+              );
+            }).toList(),
           );
         }),
       ],
     );
   }
 
-  Widget _buildRecentBookingsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Recent Bookings', style: AppTextStyles.h4),
-            TextButton(
-              onPressed: () => context.push(AppRoutes.clientBookings),
-              child: const Text('View All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppDimensions.sm),
-        Obx(() {
-          if (_bookingController.isLoading.value) {
-            return Column(
-              children: List.generate(3, (_) => Padding(
-                padding: const EdgeInsets.only(bottom: AppDimensions.sm),
-                child: AppShimmer.card(),
-              )),
-            );
-          }
-
-          final bookings = _bookingController.bookings.take(5).toList();
-
-          if (bookings.isEmpty) {
-            return const AppEmptyState(
-              icon: Icons.calendar_today_outlined,
-              title: 'No bookings yet',
-              subtitle: 'Your bookings will appear here',
-            );
-          }
-
-          return ListView.separated(
-            shrinkWrap: true,
-            physics: const NeverScrollableScrollPhysics(),
-            itemCount: bookings.length,
-            separatorBuilder: (_, __) =>
-                const SizedBox(height: AppDimensions.sm),
-            itemBuilder: (_, index) {
-              final booking = bookings[index];
-              return _RecentBookingCard(
-                booking: booking,
-                onTap: () {
-                  final id = booking['id']?.toString() ?? '';
-                  context.push('/client/bookings/$id');
-                },
-              );
-            },
-          );
-        }),
-      ],
-    );
+  String _formatTime(dynamic timestamp) {
+    if (timestamp == null) return '';
+    try {
+      final dt = DateTime.parse(timestamp.toString());
+      return timeago.format(dt);
+    } catch (_) {
+      return '';
+    }
   }
 }
 
-class _StatCard extends StatelessWidget {
+class _StatCircle extends StatelessWidget {
   final String label;
   final String value;
   final IconData icon;
   final Color color;
 
-  const _StatCard({
+  const _StatCircle({
     required this.label,
     required this.value,
     required this.icon,
@@ -358,23 +558,23 @@ class _StatCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     return AppCard(
-      padding: const EdgeInsets.all(AppDimensions.md),
+      padding: const EdgeInsets.symmetric(
+          vertical: AppDimensions.md, horizontal: AppDimensions.sm),
       child: Column(
         children: [
           Container(
-            padding: const EdgeInsets.all(8),
+            width: 48,
+            height: 48,
             decoration: BoxDecoration(
               color: color.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
+              shape: BoxShape.circle,
             ),
-            child: Icon(icon, color: color, size: 20),
+            child: Icon(icon, color: color, size: 24),
           ),
           const SizedBox(height: AppDimensions.sm),
           Text(
             value,
-            style: AppTextStyles.h4.copyWith(color: color),
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+            style: AppTextStyles.h3.copyWith(color: color),
           ),
           const SizedBox(height: 2),
           Text(
@@ -382,162 +582,6 @@ class _StatCard extends StatelessWidget {
             style: AppTextStyles.caption,
             maxLines: 1,
             overflow: TextOverflow.ellipsis,
-          ),
-        ],
-      ),
-    );
-  }
-}
-
-class _ActiveJobCard extends StatelessWidget {
-  final Map<String, dynamic> job;
-  final VoidCallback onTap;
-
-  const _ActiveJobCard({required this.job, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = job['status']?.toString() ?? 'open';
-    final title = job['title']?.toString() ?? 'Untitled Job';
-    final budgetMin = job['budget_min'];
-    final budgetMax = job['budget_max'];
-    final applicationCount = (job['applications'] as List?)?.length ??
-        job['application_count'] ?? 0;
-    final urgency = job['urgency']?.toString() ?? 'normal';
-    final category = job['categories']?['name']?.toString() ?? '';
-
-    String budget = '';
-    if (budgetMin != null && budgetMax != null) {
-      budget = '${AppConstants.currencySymbol}${_formatNum(budgetMin)} - ${AppConstants.currencySymbol}${_formatNum(budgetMax)}';
-    } else if (budgetMax != null) {
-      budget = '${AppConstants.currencySymbol}${_formatNum(budgetMax)}';
-    }
-
-    return SizedBox(
-      width: 280,
-      child: AppCard(
-        onTap: onTap,
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    title,
-                    style: AppTextStyles.labelLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                const SizedBox(width: 8),
-                AppStatusBadge.job(status),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.sm),
-            if (category.isNotEmpty)
-              Text(category, style: AppTextStyles.bodySmall),
-            const Spacer(),
-            if (budget.isNotEmpty)
-              Text(
-                budget,
-                style: AppTextStyles.priceSmall,
-                maxLines: 1,
-                overflow: TextOverflow.ellipsis,
-              ),
-            const SizedBox(height: AppDimensions.sm),
-            Row(
-              mainAxisAlignment: MainAxisAlignment.spaceBetween,
-              children: [
-                Row(
-                  children: [
-                    const Icon(Icons.people_outline, size: 16, color: AppColors.textSecondary),
-                    const SizedBox(width: 4),
-                    Text(
-                      '$applicationCount applications',
-                      style: AppTextStyles.caption,
-                    ),
-                  ],
-                ),
-                AppStatusBadge.urgency(urgency),
-              ],
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-
-  String _formatNum(dynamic value) {
-    if (value == null) return '0';
-    final num n = value is num ? value : num.tryParse(value.toString()) ?? 0;
-    if (n >= 1000) return '${(n / 1000).toStringAsFixed(0)}K';
-    return n.toStringAsFixed(0);
-  }
-}
-
-class _RecentBookingCard extends StatelessWidget {
-  final Map<String, dynamic> booking;
-  final VoidCallback onTap;
-
-  const _RecentBookingCard({required this.booking, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final status = booking['status']?.toString() ?? 'pending';
-    final workerProfile = booking['profiles!bookings_worker_id_fkey'] as Map<String, dynamic>?;
-    final workerName = workerProfile?['full_name']?.toString() ?? 'Worker';
-    final jobData = booking['jobs'] as Map<String, dynamic>?;
-    final jobTitle = jobData?['title']?.toString() ?? 'Job';
-    final agreedPrice = booking['agreed_price'];
-
-    return AppCard(
-      onTap: onTap,
-      child: Row(
-        children: [
-          Container(
-            width: 48,
-            height: 48,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
-            ),
-            child: const Icon(Icons.handyman, color: AppColors.primary),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(
-                  jobTitle,
-                  style: AppTextStyles.labelLarge,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-                const SizedBox(height: 2),
-                Text(
-                  workerName,
-                  style: AppTextStyles.bodySmall,
-                  maxLines: 1,
-                  overflow: TextOverflow.ellipsis,
-                ),
-              ],
-            ),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-          Column(
-            crossAxisAlignment: CrossAxisAlignment.end,
-            children: [
-              AppStatusBadge.booking(status),
-              if (agreedPrice != null) ...[
-                const SizedBox(height: 4),
-                Text(
-                  '${AppConstants.currencySymbol}${agreedPrice is num ? agreedPrice.toStringAsFixed(0) : agreedPrice}',
-                  style: AppTextStyles.priceSmall,
-                ),
-              ],
-            ],
           ),
         ],
       ),

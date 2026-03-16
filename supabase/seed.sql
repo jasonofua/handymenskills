@@ -1,4 +1,4 @@
--- Seed data for Artisan Marketplace
+-- Seed data for Handymenskills
 
 -- ===========================================
 -- SUBSCRIPTION PLANS
@@ -172,6 +172,6 @@ INSERT INTO system_settings (key, value, description) VALUES
   ('min_withdrawal', '5000', 'Minimum payout withdrawal in Naira'),
   ('review_window_days', '7', 'Days after completion to leave a review'),
   ('max_portfolio_images', '10', 'Maximum portfolio images per worker'),
-  ('app_name', '"Artisan Marketplace"', 'Application name'),
-  ('support_email', '"support@artisanmarketplace.ng"', 'Support email address'),
+  ('app_name', '"Handymenskills"', 'Application name'),
+  ('support_email', '"support@handymenskills.ng"', 'Support email address'),
   ('support_phone', '"+2348000000000"', 'Support phone number');

@@ -1,7 +1,10 @@
+import 'dart:io';
+
 import 'package:get/get.dart';
 import 'package:supabase_flutter/supabase_flutter.dart';
 import '../config/supabase_config.dart';
 import '../data/repositories/chat_repository.dart';
+import '../data/repositories/storage_repository.dart';
 import '../data/services/realtime_service.dart';
 import '../widgets/common/app_snackbar.dart';
 
@@ -25,6 +28,17 @@ class ChatController extends GetxController {
     try {
       isLoading.value = true;
       final data = await _chatRepo.getConversations();
+      // Add 'other_user' field for each conversation
+      for (final conv in data) {
+        final p1 = conv['participant1'] as Map<String, dynamic>?;
+        final p2 = conv['participant2'] as Map<String, dynamic>?;
+        final p1Id = conv['participant_one']?.toString();
+        if (p1Id == _userId) {
+          conv['other_user'] = p2 ?? {};
+        } else {
+          conv['other_user'] = p1 ?? {};
+        }
+      }
       conversations.assignAll(data);
     } catch (e) {
       AppSnackbar.error('Failed to load conversations');
@@ -85,6 +99,45 @@ class ChatController extends GetxController {
       );
     } catch (e) {
       AppSnackbar.error('Failed to send message');
+    } finally {
+      isSending.value = false;
+    }
+  }
+
+  /// Sends an image message. Uploads file to Supabase storage, then sends.
+  Future<void> sendImageMessage(File imageFile) async {
+    if (_activeConversationId == null) return;
+    try {
+      isSending.value = true;
+      final storageRepo = Get.find<StorageRepository>();
+      final timestamp = DateTime.now().millisecondsSinceEpoch;
+      final path = '$_userId/$timestamp.jpg';
+      final publicUrl = await storageRepo.uploadFile('chat-images', path, imageFile);
+      await _chatRepo.sendMessage(
+        _activeConversationId!,
+        'Sent an image',
+        type: 'image',
+        mediaUrl: publicUrl,
+      );
+    } catch (e) {
+      AppSnackbar.error('Failed to send image');
+    } finally {
+      isSending.value = false;
+    }
+  }
+
+  /// Sends a location message
+  Future<void> sendLocationMessage(String address) async {
+    if (_activeConversationId == null) return;
+    try {
+      isSending.value = true;
+      await _chatRepo.sendMessage(
+        _activeConversationId!,
+        address,
+        type: 'location',
+      );
+    } catch (e) {
+      AppSnackbar.error('Failed to send location');
     } finally {
       isSending.value = false;
     }

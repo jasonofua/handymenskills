@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class PaymentRepository {
@@ -32,7 +30,7 @@ class PaymentRepository {
       var query = supabase
           .from('payments')
           .select('*, bookings(*, jobs(*))')
-          .or('payer_id.eq.$userId,payee_id.eq.$userId');
+          .eq('user_id', userId);
 
       if (paymentType != null) {
         query = query.eq('payment_type', paymentType);
@@ -47,6 +45,22 @@ class PaymentRepository {
     }
   }
 
+  /// Fetches all wallet-related payments (topup & booking) for balance
+  /// calculation. Lightweight query — no joins, no limit.
+  Future<List<Map<String, dynamic>>> getWalletPayments() async {
+    try {
+      final userId = supabase.auth.currentUser!.id;
+      final response = await supabase
+          .from('payments')
+          .select('amount, payment_type, status, created_at')
+          .eq('user_id', userId)
+          .inFilter('payment_type', ['wallet_topup', 'booking_payment', 'booking_deposit']);
+      return List<Map<String, dynamic>>.from(response);
+    } catch (e) {
+      throw Exception('Failed to get wallet payments: $e');
+    }
+  }
+
   /// Fetches payouts for the current worker, paginated.
   Future<List<Map<String, dynamic>>> getPayouts({
     int limit = 20,
@@ -55,10 +69,9 @@ class PaymentRepository {
     try {
       final userId = supabase.auth.currentUser!.id;
       final response = await supabase
-          .from('payments')
+          .from('payouts')
           .select('*, bookings(*, jobs(*))')
-          .eq('payee_id', userId)
-          .eq('payment_type', 'payout')
+          .eq('worker_id', userId)
           .order('created_at', ascending: false)
           .range(offset, offset + limit - 1);
       return List<Map<String, dynamic>>.from(response);

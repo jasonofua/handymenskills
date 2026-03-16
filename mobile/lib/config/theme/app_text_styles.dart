@@ -112,4 +112,21 @@ class AppTextStyles {
     color: AppColors.primary,
     height: 1.3,
   );
+
+  // Price hero (large earnings/balance displays)
+  static const TextStyle priceHero = TextStyle(
+    fontSize: 28,
+    fontWeight: FontWeight.w700,
+    color: AppColors.primary,
+    height: 1.3,
+  );
+
+  // Section header (uppercase labels like "ACCOUNT SETTINGS")
+  static const TextStyle sectionHeader = TextStyle(
+    fontSize: 12,
+    fontWeight: FontWeight.w600,
+    color: AppColors.textSecondary,
+    letterSpacing: 1.2,
+    height: 1.4,
+  );
 }

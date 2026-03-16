@@ -24,16 +24,21 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
   @override
   void initState() {
     super.initState();
-    _subscriptionController.loadMySubscription();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _subscriptionController.loadMySubscription();
+    });
   }
 
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Subscription'),
+        centerTitle: true,
       ),
       body: RefreshIndicator(
+        color: AppColors.primary,
         onRefresh: () => _subscriptionController.loadMySubscription(),
         child: Obx(() {
           if (_subscriptionController.isLoading.value &&
@@ -49,14 +54,40 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
           return ListView(
             padding: const EdgeInsets.all(AppDimensions.screenPadding),
             children: [
+              // -- Current Plan card --
               if (subscription != null && (isActive || isGrace))
-                _buildActiveSubscriptionCard(subscription)
+                _buildCurrentPlanCard(subscription)
               else
                 _buildNoSubscriptionCard(),
               const SizedBox(height: AppDimensions.lg),
-              _buildActionButton(isActive || isGrace),
+
+              // -- Upgrade section --
+              Text(
+                'UPGRADE OR CHANGE PLAN',
+                style: AppTextStyles.sectionHeader,
+              ),
+              const SizedBox(height: AppDimensions.md),
+              _buildPlanTierCards(isActive || isGrace),
               const SizedBox(height: AppDimensions.lg),
-              _buildBenefitsSection(),
+
+              // -- Paystack footer --
+              Center(
+                child: Row(
+                  mainAxisSize: MainAxisSize.min,
+                  children: [
+                    Icon(Icons.lock_outline,
+                        size: 14, color: AppColors.textHint),
+                    const SizedBox(width: 6),
+                    Text(
+                      'Secure payments powered by Paystack',
+                      style: AppTextStyles.caption.copyWith(
+                        fontSize: 12,
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.xxl),
             ],
           );
         }),
@@ -64,104 +95,173 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     );
   }
 
-  Widget _buildActiveSubscriptionCard(Map<String, dynamic> subscription) {
+  Widget _buildCurrentPlanCard(Map<String, dynamic> subscription) {
     final planName = subscription['plan']?['name'] ??
         subscription['plan_name'] ??
         'Current Plan';
+    final planPrice = (subscription['plan']?['price'] ?? 0.0).toDouble();
     final daysRemaining = _subscriptionController.daysRemaining;
     final expiresAt = DateTime.tryParse(subscription['expires_at'] ?? '');
     final isGrace = _subscriptionController.isGracePeriod;
 
-    return AppCard(
-      color: isGrace
-          ? AppColors.warning.withValues(alpha: 0.08)
-          : AppColors.primary.withValues(alpha: 0.08),
+    return Container(
+      width: double.infinity,
+      padding: const EdgeInsets.all(AppDimensions.lg),
+      decoration: BoxDecoration(
+        gradient: LinearGradient(
+          begin: Alignment.topLeft,
+          end: Alignment.bottomRight,
+          colors: isGrace
+              ? [
+                  AppColors.warning,
+                  AppColors.secondaryDark,
+                ]
+              : [
+                  AppColors.primary,
+                  AppColors.primaryDark,
+                ],
+        ),
+        borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+        boxShadow: [
+          BoxShadow(
+            color: (isGrace ? AppColors.warning : AppColors.primary)
+                .withValues(alpha: 0.3),
+            blurRadius: 16,
+            offset: const Offset(0, 6),
+          ),
+        ],
+      ),
       child: Column(
         crossAxisAlignment: CrossAxisAlignment.start,
         children: [
+          // -- Status badge + icon --
           Row(
             children: [
               Container(
-                padding: const EdgeInsets.all(10),
+                padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
-                  color: isGrace
-                      ? AppColors.warning.withValues(alpha: 0.15)
-                      : AppColors.primary.withValues(alpha: 0.15),
-                  shape: BoxShape.circle,
+                  color: AppColors.white.withValues(alpha: 0.2),
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusSm),
                 ),
                 child: Icon(
                   isGrace ? Icons.warning_amber : Icons.workspace_premium,
-                  color: isGrace ? AppColors.warning : AppColors.primary,
-                  size: 28,
+                  color: AppColors.white,
+                  size: 22,
                 ),
               ),
-              const SizedBox(width: AppDimensions.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
+              const Spacer(),
+              Container(
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 12, vertical: 5),
+                decoration: BoxDecoration(
+                  color: AppColors.white.withValues(alpha: 0.25),
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusFull),
+                ),
+                child: Text(
+                  isGrace ? 'GRACE PERIOD' : 'ACTIVE',
+                  style: TextStyle(
+                    fontSize: 10,
+                    fontWeight: FontWeight.w700,
+                    color: AppColors.white,
+                    letterSpacing: 0.8,
+                  ),
+                ),
+              ),
+            ],
+          ),
+          const SizedBox(height: AppDimensions.md),
+
+          // -- Plan name --
+          Text(
+            planName,
+            style: AppTextStyles.h2.copyWith(color: AppColors.white),
+          ),
+          const SizedBox(height: AppDimensions.xs),
+
+          // -- Price --
+          if (planPrice > 0)
+            Text(
+              '${AppConstants.currencySymbol}${planPrice.toStringAsFixed(0)}/month',
+              style: AppTextStyles.labelLarge.copyWith(
+                color: AppColors.white.withValues(alpha: 0.85),
+              ),
+            ),
+          const SizedBox(height: AppDimensions.md),
+
+          // -- Divider --
+          Container(
+            height: 1,
+            color: AppColors.white.withValues(alpha: 0.2),
+          ),
+          const SizedBox(height: AppDimensions.md),
+
+          // -- Days remaining + Expiry --
+          Row(
+            mainAxisAlignment: MainAxisAlignment.spaceBetween,
+            children: [
+              Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Days Remaining',
+                    style: AppTextStyles.caption.copyWith(
+                      color: AppColors.white.withValues(alpha: 0.7),
+                    ),
+                  ),
+                  const SizedBox(height: 2),
+                  Text(
+                    daysRemaining > 0 ? daysRemaining.toString() : '0',
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.white,
+                    ),
+                  ),
+                ],
+              ),
+              if (expiresAt != null)
+                Column(
+                  crossAxisAlignment: CrossAxisAlignment.end,
                   children: [
-                    Text(planName, style: AppTextStyles.h4),
-                    const SizedBox(height: 4),
-                    Container(
-                      padding: const EdgeInsets.symmetric(
-                          horizontal: 8, vertical: 2),
-                      decoration: BoxDecoration(
-                        color: isGrace
-                            ? AppColors.warning.withValues(alpha: 0.2)
-                            : AppColors.success.withValues(alpha: 0.2),
-                        borderRadius: BorderRadius.circular(
-                            AppDimensions.radiusFull),
+                    Text(
+                      'Expires',
+                      style: AppTextStyles.caption.copyWith(
+                        color: AppColors.white.withValues(alpha: 0.7),
                       ),
-                      child: Text(
-                        isGrace ? 'Grace Period' : 'Active',
-                        style: AppTextStyles.labelSmall.copyWith(
-                          color:
-                              isGrace ? AppColors.warning : AppColors.success,
-                        ),
+                    ),
+                    const SizedBox(height: 2),
+                    Text(
+                      _formatDate(expiresAt),
+                      style: AppTextStyles.labelLarge.copyWith(
+                        color: AppColors.white,
                       ),
                     ),
                   ],
                 ),
-              ),
             ],
           ),
-          const SizedBox(height: AppDimensions.lg),
-          const Divider(),
-          const SizedBox(height: AppDimensions.sm),
-          Row(
-            mainAxisAlignment: MainAxisAlignment.spaceBetween,
-            children: [
-              _InfoColumn(
-                label: 'Days Remaining',
-                value: daysRemaining > 0 ? daysRemaining.toString() : '0',
-              ),
-              if (expiresAt != null)
-                _InfoColumn(
-                  label: 'Expires',
-                  value: _formatDate(expiresAt),
-                ),
-            ],
-          ),
+
+          // -- Grace period warning --
           if (isGrace) ...[
             const SizedBox(height: AppDimensions.md),
             Container(
               width: double.infinity,
               padding: const EdgeInsets.all(AppDimensions.sm),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
+                color: AppColors.white.withValues(alpha: 0.15),
                 borderRadius:
                     BorderRadius.circular(AppDimensions.radiusSm),
               ),
               child: Row(
                 children: [
                   const Icon(Icons.info_outline,
-                      color: AppColors.warning, size: 18),
+                      color: AppColors.white, size: 16),
                   const SizedBox(width: AppDimensions.sm),
                   Expanded(
                     child: Text(
-                      'Your subscription has expired. You have ${AppConstants.gracePeriodDays} days to renew before losing access.',
+                      'Your subscription has expired. Renew within ${AppConstants.gracePeriodDays} days to keep access.',
                       style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.warning,
+                        color: AppColors.white.withValues(alpha: 0.9),
                       ),
                     ),
                   ),
@@ -178,10 +278,18 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
     return AppCard(
       child: Column(
         children: [
-          Icon(
-            Icons.workspace_premium_outlined,
-            size: 64,
-            color: AppColors.textHint,
+          const SizedBox(height: AppDimensions.md),
+          Container(
+            padding: const EdgeInsets.all(16),
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.1),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              Icons.workspace_premium_outlined,
+              size: 48,
+              color: AppColors.primary,
+            ),
           ),
           const SizedBox(height: AppDimensions.md),
           Text(
@@ -196,59 +304,151 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
             ),
             textAlign: TextAlign.center,
           ),
+          const SizedBox(height: AppDimensions.md),
         ],
       ),
     );
   }
 
-  Widget _buildActionButton(bool hasSubscription) {
-    return SizedBox(
-      width: double.infinity,
-      height: AppDimensions.buttonHeight,
-      child: ElevatedButton.icon(
-        onPressed: () => context.push(AppRoutes.workerPlanSelection),
-        icon: Icon(hasSubscription ? Icons.autorenew : Icons.upgrade),
-        label: Text(hasSubscription ? 'Renew Plan' : 'Choose a Plan'),
-      ),
-    );
-  }
+  Widget _buildPlanTierCards(bool hasSubscription) {
+    // Plan tiers - these map to what the backend provides
+    final plans = [
+      {
+        'name': 'Basic',
+        'icon': Icons.star_outline,
+        'color': AppColors.info,
+        'features': [
+          'Apply to up to 5 jobs/month',
+          'Basic profile listing',
+          'Standard support',
+        ],
+      },
+      {
+        'name': 'Professional',
+        'icon': Icons.workspace_premium,
+        'color': AppColors.primary,
+        'popular': true,
+        'features': [
+          'Unlimited job applications',
+          'Priority profile listing',
+          'Verified badge eligibility',
+          'Direct messaging with clients',
+        ],
+      },
+      {
+        'name': 'Enterprise',
+        'icon': Icons.diamond_outlined,
+        'color': AppColors.secondary,
+        'features': [
+          'Everything in Professional',
+          'Featured in search results',
+          'Priority support',
+          'Analytics dashboard',
+          'Team management',
+        ],
+      },
+    ];
 
-  Widget _buildBenefitsSection() {
     return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        const Text('Subscription Benefits', style: AppTextStyles.h4),
-        const SizedBox(height: AppDimensions.sm),
-        AppCard(
-          child: Column(
-            children: [
-              _BenefitItem(
-                icon: Icons.work_outline,
-                title: 'Apply to Jobs',
-                description: 'Submit applications to available jobs',
-              ),
-              const Divider(),
-              _BenefitItem(
-                icon: Icons.search,
-                title: 'Appear in Search',
-                description: 'Clients can find you in worker searches',
-              ),
-              const Divider(),
-              _BenefitItem(
-                icon: Icons.chat_outlined,
-                title: 'Direct Messaging',
-                description: 'Chat directly with clients',
-              ),
-              const Divider(),
-              _BenefitItem(
-                icon: Icons.star_outline,
-                title: 'Build Reputation',
-                description: 'Collect reviews and grow your profile',
-              ),
-            ],
+      children: plans.map((plan) {
+        final isPopular = plan['popular'] == true;
+        final color = plan['color'] as Color;
+
+        return Padding(
+          padding: const EdgeInsets.only(bottom: AppDimensions.md),
+          child: AppCard(
+            borderColor: isPopular
+                ? AppColors.primary.withValues(alpha: 0.3)
+                : null,
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Row(
+                  children: [
+                    Container(
+                      padding: const EdgeInsets.all(8),
+                      decoration: BoxDecoration(
+                        color: color.withValues(alpha: 0.1),
+                        borderRadius:
+                            BorderRadius.circular(AppDimensions.radiusSm),
+                      ),
+                      child: Icon(plan['icon'] as IconData,
+                          color: color, size: 20),
+                    ),
+                    const SizedBox(width: AppDimensions.sm),
+                    Text(
+                      plan['name'] as String,
+                      style: AppTextStyles.h4,
+                    ),
+                    const Spacer(),
+                    if (isPopular)
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                            horizontal: 10, vertical: 4),
+                        decoration: BoxDecoration(
+                          color: AppColors.primary.withValues(alpha: 0.1),
+                          borderRadius: BorderRadius.circular(
+                              AppDimensions.radiusFull),
+                        ),
+                        child: Text(
+                          'POPULAR',
+                          style: TextStyle(
+                            fontSize: 10,
+                            fontWeight: FontWeight.w700,
+                            color: AppColors.primary,
+                            letterSpacing: 0.5,
+                          ),
+                        ),
+                      ),
+                  ],
+                ),
+                const SizedBox(height: AppDimensions.md),
+                ...(plan['features'] as List<String>).map(
+                  (feature) => Padding(
+                    padding: const EdgeInsets.only(bottom: 8),
+                    child: Row(
+                      crossAxisAlignment: CrossAxisAlignment.start,
+                      children: [
+                        Icon(Icons.check_circle,
+                            size: 18, color: AppColors.success),
+                        const SizedBox(width: AppDimensions.sm),
+                        Expanded(
+                          child: Text(
+                            feature,
+                            style: AppTextStyles.bodyMedium.copyWith(
+                              color: AppColors.textSecondary,
+                            ),
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+                const SizedBox(height: AppDimensions.sm),
+                SizedBox(
+                  width: double.infinity,
+                  height: AppDimensions.buttonSmallHeight,
+                  child: isPopular
+                      ? ElevatedButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.workerPlanSelection),
+                          child: Text(hasSubscription
+                              ? 'Upgrade'
+                              : 'Choose Plan'),
+                        )
+                      : OutlinedButton(
+                          onPressed: () =>
+                              context.push(AppRoutes.workerPlanSelection),
+                          child: Text(hasSubscription
+                              ? 'Switch Plan'
+                              : 'Choose Plan'),
+                        ),
+                ),
+              ],
+            ),
           ),
-        ),
-      ],
+        );
+      }).toList(),
     );
   }
 
@@ -258,67 +458,5 @@ class _SubscriptionScreenState extends State<SubscriptionScreen> {
       'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
     ];
     return '${months[date.month - 1]} ${date.day}, ${date.year}';
-  }
-}
-
-class _InfoColumn extends StatelessWidget {
-  final String label;
-  final String value;
-
-  const _InfoColumn({required this.label, required this.value});
-
-  @override
-  Widget build(BuildContext context) {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Text(label, style: AppTextStyles.caption),
-        const SizedBox(height: 4),
-        Text(value, style: AppTextStyles.labelLarge),
-      ],
-    );
-  }
-}
-
-class _BenefitItem extends StatelessWidget {
-  final IconData icon;
-  final String title;
-  final String description;
-
-  const _BenefitItem({
-    required this.icon,
-    required this.title,
-    required this.description,
-  });
-
-  @override
-  Widget build(BuildContext context) {
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
-      child: Row(
-        children: [
-          Container(
-            width: 40,
-            height: 40,
-            decoration: BoxDecoration(
-              color: AppColors.primary.withValues(alpha: 0.1),
-              shape: BoxShape.circle,
-            ),
-            child: Icon(icon, color: AppColors.primary, size: 20),
-          ),
-          const SizedBox(width: AppDimensions.md),
-          Expanded(
-            child: Column(
-              crossAxisAlignment: CrossAxisAlignment.start,
-              children: [
-                Text(title, style: AppTextStyles.labelMedium),
-                const SizedBox(height: 2),
-                Text(description, style: AppTextStyles.caption),
-              ],
-            ),
-          ),
-        ],
-      ),
-    );
   }
 }

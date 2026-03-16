@@ -148,8 +148,8 @@ export default async function JobDetailPage({ params }: Props) {
                           <Link href={`/users/${worker?.id}`} className="text-sm font-medium hover:underline">
                             {worker?.full_name || "Unknown"}
                           </Link>
-                          <Badge className={statusColors[booking.booking_status] || ""}>
-                            {booking.booking_status.replace(/_/g, " ")}
+                          <Badge className={statusColors[booking.status] || ""}>
+                            {booking.status.replace(/_/g, " ")}
                           </Badge>
                         </div>
                         <div className="mt-1 flex items-center justify-between text-xs text-muted-foreground">

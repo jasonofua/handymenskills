@@ -64,11 +64,8 @@ class _SplashScreenState extends State<SplashScreen>
       final role = authController.userRole.value;
       if (role == 'worker') {
         context.go(AppRoutes.workerDashboard);
-      } else if (role == 'client') {
-        context.go(AppRoutes.clientDashboard);
       } else {
-        // Logged in but no role selected yet
-        context.go(AppRoutes.roleSelection);
+        context.go(AppRoutes.clientDashboard);
       }
     } else {
       // Not logged in - check if first launch

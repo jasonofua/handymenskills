@@ -1,5 +1,3 @@
-import 'package:supabase_flutter/supabase_flutter.dart';
-
 import '../../config/supabase_config.dart';
 
 class SubscriptionRepository {
@@ -24,7 +22,7 @@ class SubscriptionRepository {
       final response = await supabase
           .from('subscriptions')
           .select('*, subscription_plans(*)')
-          .eq('user_id', userId)
+          .eq('worker_id', userId)
           .eq('status', 'active')
           .maybeSingle();
       return response;
@@ -36,8 +34,15 @@ class SubscriptionRepository {
   /// Checks the current worker's subscription status via RPC.
   Future<Map<String, dynamic>> checkSubscriptionStatus() async {
     try {
-      final response = await supabase.rpc('check_worker_subscription');
-      return Map<String, dynamic>.from(response as Map);
+      final userId = supabase.auth.currentUser!.id;
+      final response = await supabase.rpc(
+        'check_worker_subscription',
+        params: {'p_worker_user_id': userId},
+      );
+      if (response is List && response.isNotEmpty) {
+        return Map<String, dynamic>.from(response.first as Map);
+      }
+      return {'has_subscription': false};
     } catch (e) {
       throw Exception('Failed to check subscription status: $e');
     }

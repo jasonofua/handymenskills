@@ -12,7 +12,6 @@ import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_error_widget.dart';
 import '../../../widgets/common/app_shimmer.dart';
-import '../../../widgets/common/app_status_badge.dart';
 import '../../../widgets/common/app_text_field.dart';
 
 class WorkerBookingDetailScreen extends StatefulWidget {
@@ -31,7 +30,9 @@ class _WorkerBookingDetailScreenState extends State<WorkerBookingDetailScreen> {
   @override
   void initState() {
     super.initState();
-    _bookingController.loadBookingDetail(widget.bookingId);
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _bookingController.loadBookingDetail(widget.bookingId);
+    });
   }
 
   @override
@@ -392,14 +393,13 @@ class _WorkerBookingDetailScreenState extends State<WorkerBookingDetailScreen> {
       child: Column(
         mainAxisSize: MainAxisSize.min,
         children: [
-          if (primaryButton != null)
-            Obx(() => SizedBox(
-                  width: double.infinity,
-                  height: AppDimensions.buttonHeight,
-                  child: _bookingController.isProcessing.value
-                      ? const Center(child: CircularProgressIndicator())
-                      : primaryButton!,
-                )),
+          Obx(() => SizedBox(
+                width: double.infinity,
+                height: AppDimensions.buttonHeight,
+                child: _bookingController.isProcessing.value
+                    ? const Center(child: CircularProgressIndicator())
+                    : primaryButton,
+              )),
           if (showCancelButton) ...[
             const SizedBox(height: AppDimensions.sm),
             SizedBox(

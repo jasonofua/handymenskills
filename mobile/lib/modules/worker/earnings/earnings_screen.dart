@@ -1,5 +1,4 @@
 import 'package:flutter/material.dart';
-import 'package:fl_chart/fl_chart.dart';
 import 'package:get/get.dart';
 
 import '../../../config/theme/app_colors.dart';
@@ -26,7 +25,9 @@ class _EarningsScreenState extends State<EarningsScreen> {
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -39,10 +40,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
   @override
   Widget build(BuildContext context) {
     return Scaffold(
+      backgroundColor: AppColors.background,
       appBar: AppBar(
         title: const Text('Earnings'),
+        centerTitle: true,
       ),
       body: RefreshIndicator(
+        color: AppColors.primary,
         onRefresh: _loadData,
         child: Obx(() {
           final isLoading = _paymentController.isLoading.value;
@@ -56,11 +60,13 @@ class _EarningsScreenState extends State<EarningsScreen> {
           return ListView(
             padding: const EdgeInsets.all(AppDimensions.screenPadding),
             children: [
-              _buildTotalEarningsCard(),
+              _buildTotalEarningsHero(),
+              const SizedBox(height: AppDimensions.md),
+              _buildPendingPayoutCard(),
               const SizedBox(height: AppDimensions.lg),
-              _buildMonthlyChartPlaceholder(),
+              _buildMonthlyTrends(),
               const SizedBox(height: AppDimensions.lg),
-              _buildTransactionList(),
+              _buildPayoutHistory(),
             ],
           );
         }),
@@ -68,26 +74,52 @@ class _EarningsScreenState extends State<EarningsScreen> {
     );
   }
 
-  Widget _buildTotalEarningsCard() {
+  Widget _buildTotalEarningsHero() {
     return Obx(() {
       final profile = _workerProfileController.workerProfile;
       final totalEarnings = (profile['total_earnings'] ?? 0.0).toDouble();
-      final pendingBalance = (profile['pending_balance'] ?? 0.0).toDouble();
 
-      return AppCard(
-        color: AppColors.primary,
+      return Container(
+        width: double.infinity,
+        padding: const EdgeInsets.all(AppDimensions.lg),
+        decoration: BoxDecoration(
+          gradient: const LinearGradient(
+            begin: Alignment.topLeft,
+            end: Alignment.bottomRight,
+            colors: [
+              AppColors.primary,
+              AppColors.primaryDark,
+            ],
+          ),
+          borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+          boxShadow: [
+            BoxShadow(
+              color: AppColors.primary.withValues(alpha: 0.3),
+              blurRadius: 16,
+              offset: const Offset(0, 6),
+            ),
+          ],
+        ),
         child: Column(
           crossAxisAlignment: CrossAxisAlignment.start,
           children: [
             Row(
               children: [
-                const Icon(Icons.account_balance_wallet,
-                    color: AppColors.white, size: 28),
+                Container(
+                  padding: const EdgeInsets.all(8),
+                  decoration: BoxDecoration(
+                    color: AppColors.white.withValues(alpha: 0.2),
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusSm),
+                  ),
+                  child: const Icon(Icons.account_balance_wallet,
+                      color: AppColors.white, size: 22),
+                ),
                 const SizedBox(width: AppDimensions.sm),
                 Text(
                   'Total Earnings',
                   style: AppTextStyles.labelLarge.copyWith(
-                    color: AppColors.white.withValues(alpha: 0.8),
+                    color: AppColors.white.withValues(alpha: 0.85),
                   ),
                 ),
               ],
@@ -95,25 +127,34 @@ class _EarningsScreenState extends State<EarningsScreen> {
             const SizedBox(height: AppDimensions.md),
             Text(
               '${AppConstants.currencySymbol}${totalEarnings.toStringAsFixed(2)}',
-              style: TextStyle(
-                fontSize: 32,
-                fontWeight: FontWeight.w700,
+              style: AppTextStyles.priceHero.copyWith(
                 color: AppColors.white,
-                height: 1.2,
+                fontSize: 32,
               ),
             ),
             const SizedBox(height: AppDimensions.sm),
+            // Growth indicator
             Container(
-              padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+              padding:
+                  const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
               decoration: BoxDecoration(
                 color: AppColors.white.withValues(alpha: 0.2),
-                borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                borderRadius:
+                    BorderRadius.circular(AppDimensions.radiusFull),
               ),
-              child: Text(
-                'Pending: ${AppConstants.currencySymbol}${pendingBalance.toStringAsFixed(2)}',
-                style: AppTextStyles.labelSmall.copyWith(
-                  color: AppColors.white,
-                ),
+              child: Row(
+                mainAxisSize: MainAxisSize.min,
+                children: [
+                  Icon(Icons.trending_up,
+                      size: 14, color: AppColors.white.withValues(alpha: 0.9)),
+                  const SizedBox(width: 4),
+                  Text(
+                    'Lifetime earnings',
+                    style: AppTextStyles.labelSmall.copyWith(
+                      color: AppColors.white.withValues(alpha: 0.9),
+                    ),
+                  ),
+                ],
               ),
             ),
           ],
@@ -122,22 +163,93 @@ class _EarningsScreenState extends State<EarningsScreen> {
     });
   }
 
-  Widget _buildMonthlyChartPlaceholder() {
+  Widget _buildPendingPayoutCard() {
+    return Obx(() {
+      final profile = _workerProfileController.workerProfile;
+      final pendingBalance = (profile['pending_balance'] ?? 0.0).toDouble();
+
+      return AppCard(
+        child: Row(
+          children: [
+            Container(
+              padding: const EdgeInsets.all(10),
+              decoration: BoxDecoration(
+                color: AppColors.warning.withValues(alpha: 0.1),
+                shape: BoxShape.circle,
+              ),
+              child: const Icon(Icons.hourglass_bottom,
+                  color: AppColors.warning, size: 22),
+            ),
+            const SizedBox(width: AppDimensions.md),
+            Expanded(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text('Pending Payout', style: AppTextStyles.caption),
+                  const SizedBox(height: 2),
+                  Text(
+                    '${AppConstants.currencySymbol}${pendingBalance.toStringAsFixed(2)}',
+                    style: AppTextStyles.price,
+                  ),
+                ],
+              ),
+            ),
+            SizedBox(
+              height: AppDimensions.buttonSmallHeight,
+              child: ElevatedButton(
+                onPressed: pendingBalance >= AppConstants.minWithdrawal
+                    ? () {
+                        // Payout request logic handled by payment flow
+                        Get.snackbar(
+                          'Payout Request',
+                          'Minimum withdrawal: ${AppConstants.currencySymbol}${AppConstants.minWithdrawal.toStringAsFixed(0)}',
+                          snackPosition: SnackPosition.BOTTOM,
+                        );
+                      }
+                    : null,
+                style: ElevatedButton.styleFrom(
+                  backgroundColor: AppColors.primary,
+                  foregroundColor: AppColors.white,
+                  padding:
+                      const EdgeInsets.symmetric(horizontal: AppDimensions.md),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusSm),
+                  ),
+                  elevation: 0,
+                  textStyle: const TextStyle(
+                    fontSize: 13,
+                    fontWeight: FontWeight.w600,
+                  ),
+                ),
+                child: const Text('Request Payout'),
+              ),
+            ),
+          ],
+        ),
+      );
+    });
+  }
+
+  Widget _buildMonthlyTrends() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Monthly Earnings', style: AppTextStyles.h4),
-        const SizedBox(height: AppDimensions.sm),
+        Text(
+          'MONTHLY TRENDS',
+          style: AppTextStyles.sectionHeader,
+        ),
+        const SizedBox(height: AppDimensions.md),
         AppCard(
-          child: SizedBox(
-            height: 220,
-            child: Obx(() {
-              final payments = _paymentController.paymentHistory;
-              final monthlyData = _aggregateByMonth(payments);
+          child: Obx(() {
+            final payments = _paymentController.paymentHistory;
+            final monthlyData = _aggregateByMonth(payments);
 
-              if (monthlyData.isEmpty ||
-                  monthlyData.values.every((v) => v == 0)) {
-                return Center(
+            if (monthlyData.isEmpty ||
+                monthlyData.values.every((v) => v == 0)) {
+              return SizedBox(
+                height: 160,
+                child: Center(
                   child: Column(
                     mainAxisAlignment: MainAxisAlignment.center,
                     children: [
@@ -148,113 +260,88 @@ class _EarningsScreenState extends State<EarningsScreen> {
                           style: AppTextStyles.bodySmall),
                     ],
                   ),
-                );
-              }
-
-              final maxY = monthlyData.values
-                  .reduce((a, b) => a > b ? a : b);
-              final roundedMax = maxY == 0
-                  ? 10000.0
-                  : (maxY * 1.2 / 5000).ceil() * 5000.0;
-
-              return Padding(
-                padding: const EdgeInsets.only(top: 16, right: 8),
-                child: BarChart(
-                  BarChartData(
-                    alignment: BarChartAlignment.spaceAround,
-                    maxY: roundedMax,
-                    barGroups: monthlyData.entries.map((entry) {
-                      return BarChartGroupData(
-                        x: entry.key,
-                        barRods: [
-                          BarChartRodData(
-                            toY: entry.value,
-                            color: AppColors.primary,
-                            width: 20,
-                            borderRadius: const BorderRadius.vertical(
-                              top: Radius.circular(4),
-                            ),
-                          ),
-                        ],
-                      );
-                    }).toList(),
-                    titlesData: FlTitlesData(
-                      bottomTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 28,
-                          getTitlesWidget: (value, meta) {
-                            const months = [
-                              'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
-                              'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
-                            ];
-                            final idx = value.toInt();
-                            if (idx < 0 || idx > 11) {
-                              return const SizedBox.shrink();
-                            }
-                            return Padding(
-                              padding: const EdgeInsets.only(top: 8),
-                              child: Text(
-                                months[idx],
-                                style: AppTextStyles.caption,
-                              ),
-                            );
-                          },
-                        ),
-                      ),
-                      leftTitles: AxisTitles(
-                        sideTitles: SideTitles(
-                          showTitles: true,
-                          reservedSize: 50,
-                          getTitlesWidget: (value, meta) {
-                            if (value == 0) return const SizedBox.shrink();
-                            final label = value >= 1000000
-                                ? '${(value / 1000000).toStringAsFixed(1)}M'
-                                : value >= 1000
-                                    ? '${(value / 1000).toStringAsFixed(0)}k'
-                                    : value.toStringAsFixed(0);
-                            return Text(
-                              '${AppConstants.currencySymbol}$label',
-                              style: AppTextStyles.caption,
-                            );
-                          },
-                        ),
-                      ),
-                      topTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                      rightTitles: const AxisTitles(
-                        sideTitles: SideTitles(showTitles: false),
-                      ),
-                    ),
-                    gridData: FlGridData(
-                      show: true,
-                      drawVerticalLine: false,
-                      horizontalInterval: roundedMax / 4,
-                    ),
-                    borderData: FlBorderData(show: false),
-                    barTouchData: BarTouchData(
-                      touchTooltipData: BarTouchTooltipData(
-                        getTooltipItem: (group, groupIndex, rod, rodIndex) {
-                          return BarTooltipItem(
-                            '${AppConstants.currencySymbol}${rod.toY.toStringAsFixed(0)}',
-                            const TextStyle(
-                              color: AppColors.white,
-                              fontWeight: FontWeight.w600,
-                              fontSize: 12,
-                            ),
-                          );
-                        },
-                      ),
-                    ),
-                  ),
                 ),
               );
-            }),
-          ),
+            }
+
+            final maxVal = monthlyData.values.reduce((a, b) => a > b ? a : b);
+            final maxHeight = 120.0;
+
+            return Column(
+              children: [
+                SizedBox(
+                  height: maxHeight + 32,
+                  child: Row(
+                    crossAxisAlignment: CrossAxisAlignment.end,
+                    children: monthlyData.entries.map((entry) {
+                      final barHeight = maxVal > 0
+                          ? (entry.value / maxVal) * maxHeight
+                          : 0.0;
+                      final monthNames = [
+                        'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+                        'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec'
+                      ];
+                      final monthLabel = entry.key >= 0 && entry.key < 12
+                          ? monthNames[entry.key]
+                          : '';
+
+                      return Expanded(
+                        child: Padding(
+                          padding: const EdgeInsets.symmetric(horizontal: 3),
+                          child: Column(
+                            mainAxisAlignment: MainAxisAlignment.end,
+                            children: [
+                              if (entry.value > 0)
+                                Text(
+                                  _formatCompactAmount(entry.value),
+                                  style: AppTextStyles.labelSmall.copyWith(
+                                    fontSize: 9,
+                                    color: AppColors.primary,
+                                  ),
+                                ),
+                              const SizedBox(height: 4),
+                              Container(
+                                height: barHeight < 4 && entry.value > 0
+                                    ? 4
+                                    : barHeight,
+                                decoration: BoxDecoration(
+                                  color: entry.value > 0
+                                      ? AppColors.primary
+                                      : AppColors.border,
+                                  borderRadius: const BorderRadius.vertical(
+                                    top: Radius.circular(4),
+                                  ),
+                                ),
+                              ),
+                              const SizedBox(height: 6),
+                              Text(
+                                monthLabel,
+                                style: AppTextStyles.caption.copyWith(
+                                  fontSize: 10,
+                                ),
+                              ),
+                            ],
+                          ),
+                        ),
+                      );
+                    }).toList(),
+                  ),
+                ),
+              ],
+            );
+          }),
         ),
       ],
     );
+  }
+
+  String _formatCompactAmount(double amount) {
+    if (amount >= 1000000) {
+      return '${(amount / 1000000).toStringAsFixed(1)}M';
+    } else if (amount >= 1000) {
+      return '${(amount / 1000).toStringAsFixed(0)}k';
+    }
+    return amount.toStringAsFixed(0);
   }
 
   Map<int, double> _aggregateByMonth(List<Map<String, dynamic>> payments) {
@@ -283,12 +370,15 @@ class _EarningsScreenState extends State<EarningsScreen> {
     return monthly;
   }
 
-  Widget _buildTransactionList() {
+  Widget _buildPayoutHistory() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
-        const Text('Recent Transactions', style: AppTextStyles.h4),
-        const SizedBox(height: AppDimensions.sm),
+        Text(
+          'PAYOUT HISTORY',
+          style: AppTextStyles.sectionHeader,
+        ),
+        const SizedBox(height: AppDimensions.md),
         Obx(() {
           final payments = _paymentController.paymentHistory;
           final payouts = _paymentController.payouts;
@@ -329,7 +419,8 @@ class _EarningsScreenState extends State<EarningsScreen> {
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
             itemCount: allTransactions.length,
-            separatorBuilder: (_, __) => const Divider(height: 1),
+            separatorBuilder: (_, __) =>
+                const SizedBox(height: AppDimensions.sm),
             itemBuilder: (context, index) {
               final transaction = allTransactions[index];
               return _TransactionTile(transaction: transaction);
@@ -357,22 +448,24 @@ class _TransactionTile extends StatelessWidget {
         ? (transaction['payment_type'] ?? 'Job payment')
         : 'Payout to bank';
 
-    return Padding(
-      padding: const EdgeInsets.symmetric(vertical: AppDimensions.sm),
+    return AppCard(
+      padding: const EdgeInsets.symmetric(
+        horizontal: AppDimensions.cardPadding,
+        vertical: AppDimensions.sm + 2,
+      ),
       child: Row(
         children: [
+          // Status icon
           Container(
-            width: 40,
-            height: 40,
+            width: 42,
+            height: 42,
             decoration: BoxDecoration(
               color: (isEarning ? AppColors.success : AppColors.info)
                   .withValues(alpha: 0.1),
               shape: BoxShape.circle,
             ),
             child: Icon(
-              isEarning
-                  ? Icons.arrow_downward
-                  : Icons.arrow_upward,
+              isEarning ? Icons.arrow_downward : Icons.arrow_upward,
               color: isEarning ? AppColors.success : AppColors.info,
               size: 20,
             ),
@@ -396,22 +489,7 @@ class _TransactionTile extends StatelessWidget {
                           style: AppTextStyles.caption),
                     if (status.isNotEmpty) ...[
                       const SizedBox(width: AppDimensions.sm),
-                      Container(
-                        padding: const EdgeInsets.symmetric(
-                            horizontal: 6, vertical: 2),
-                        decoration: BoxDecoration(
-                          color: _statusColor(status).withValues(alpha: 0.1),
-                          borderRadius:
-                              BorderRadius.circular(AppDimensions.radiusFull),
-                        ),
-                        child: Text(
-                          status,
-                          style: AppTextStyles.labelSmall.copyWith(
-                            color: _statusColor(status),
-                            fontSize: 10,
-                          ),
-                        ),
-                      ),
+                      _buildStatusIcon(status),
                     ],
                   ],
                 ),
@@ -429,6 +507,31 @@ class _TransactionTile extends StatelessWidget {
     );
   }
 
+  Widget _buildStatusIcon(String status) {
+    IconData icon;
+    Color color;
+    switch (status) {
+      case 'completed':
+      case 'verified':
+      case 'success':
+        icon = Icons.check_circle;
+        color = AppColors.success;
+        break;
+      case 'pending':
+        icon = Icons.schedule;
+        color = AppColors.warning;
+        break;
+      case 'failed':
+        icon = Icons.cancel;
+        color = AppColors.error;
+        break;
+      default:
+        icon = Icons.info_outline;
+        color = AppColors.textHint;
+    }
+    return Icon(icon, size: 14, color: color);
+  }
+
   String _formatDescription(String description) {
     return description
         .replaceAll('_', ' ')
@@ -438,21 +541,6 @@ class _TransactionTile extends StatelessWidget {
           return '${w[0].toUpperCase()}${w.substring(1)}';
         })
         .join(' ');
-  }
-
-  Color _statusColor(String status) {
-    switch (status) {
-      case 'completed':
-      case 'verified':
-      case 'success':
-        return AppColors.success;
-      case 'pending':
-        return AppColors.warning;
-      case 'failed':
-        return AppColors.error;
-      default:
-        return AppColors.textHint;
-    }
   }
 
   String _formatDate(DateTime date) {

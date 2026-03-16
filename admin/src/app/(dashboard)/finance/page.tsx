@@ -18,13 +18,13 @@ export default async function FinancePage({ searchParams }: Props) {
   let query = supabase
     .from("payments")
     .select(
-      "*, bookings(id, jobs(title)), payer:profiles!payments_payer_id_fkey(full_name)",
+      "*, bookings(id, jobs(title)), payer:profiles!payments_user_id_fkey(full_name)",
       { count: "exact" }
     )
     .order("created_at", { ascending: false })
     .range(offset, offset + DEFAULT_PAGE_SIZE - 1);
 
-  if (status) query = query.eq("payment_status", status);
+  if (status) query = query.eq("status", status);
 
   const { data: payments, count } = await query;
 

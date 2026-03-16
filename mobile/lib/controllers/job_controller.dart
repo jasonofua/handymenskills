@@ -1,4 +1,3 @@
-import 'dart:io';
 import 'package:get/get.dart';
 import '../data/repositories/job_repository.dart';
 import '../config/constants.dart';
@@ -144,13 +143,15 @@ class JobController extends GetxController {
     }
   }
 
-  Future<void> deleteJob(String jobId) async {
+  Future<bool> deleteJob(String jobId) async {
     try {
-      await _jobRepo.deleteJob(jobId);
+      await _jobRepo.updateJob(jobId, {'status': 'cancelled'});
       myJobs.removeWhere((j) => j['id'] == jobId);
       AppSnackbar.success('Job deleted');
+      return true;
     } catch (e) {
       AppSnackbar.error('Failed to delete job');
+      return false;
     }
   }
 

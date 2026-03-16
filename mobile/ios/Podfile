@@ -30,6 +30,9 @@ flutter_ios_podfile_setup
 target 'Runner' do
   use_frameworks!
 
+  # Pin FirebaseCoreInternal to avoid Swift 6 requirement (Xcode 15 compat)
+  pod 'FirebaseCoreInternal', '~> 11.4.0'
+
   flutter_install_all_ios_pods File.dirname(File.realpath(__FILE__))
   target 'RunnerTests' do
     inherit! :search_paths

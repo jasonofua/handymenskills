@@ -20,76 +20,146 @@ class SettingsScreen extends StatelessWidget {
 
     return Scaffold(
       appBar: AppBar(
-        title: const Text('Settings'),
+        title: const Text('Settings', style: AppTextStyles.h4),
       ),
       body: ListView(
-        padding: const EdgeInsets.symmetric(
-          vertical: AppDimensions.md,
-        ),
         children: [
-          // Profile section
+          // Profile section — centered
           _buildProfileSection(context, authController),
-          const SizedBox(height: AppDimensions.md),
+          const SizedBox(height: AppDimensions.lg),
 
-          // Preferences section
-          _buildSectionHeader('Preferences'),
-          _SettingsTile(
-            icon: Icons.dark_mode_outlined,
-            title: 'Dark Mode',
-            trailing: Obx(() => Switch.adaptive(
-                  value: themeController.isDark,
-                  activeColor: AppColors.primary,
-                  onChanged: (_) => themeController.toggleTheme(),
-                )),
-          ),
+          // Account Settings section
+          _buildSectionHeader('ACCOUNT SETTINGS'),
+          const SizedBox(height: AppDimensions.sm),
           _SettingsTile(
             icon: Icons.notifications_outlined,
-            title: 'Notification Settings',
+            title: 'Notification Preferences',
             onTap: () => context.push(AppRoutes.notificationSettings),
           ),
-          const SizedBox(height: AppDimensions.md),
-
-          // Support section
-          _buildSectionHeader('Support'),
           _SettingsTile(
-            icon: Icons.info_outline,
-            title: 'About',
-            onTap: () => context.push(AppRoutes.about),
+            icon: Icons.lock_outline,
+            title: 'Privacy & Security',
+            onTap: () => _showInfoDialog(
+              context,
+              title: 'Privacy & Security',
+              content: 'Privacy settings will be available in a future update.',
+            ),
+          ),
+          _SettingsTile(
+            icon: Icons.account_balance_wallet_outlined,
+            title: 'Payment Methods',
+            onTap: () => _showInfoDialog(
+              context,
+              title: 'Payment Methods',
+              content: 'Payment method management will be available in a future update.',
+            ),
+          ),
+          const SizedBox(height: AppDimensions.lg),
+
+          // Support & About section
+          _buildSectionHeader('SUPPORT & ABOUT'),
+          const SizedBox(height: AppDimensions.sm),
+          _SettingsTile(
+            icon: Icons.help_outline,
+            title: 'Help Center',
+            onTap: () => _showInfoDialog(
+              context,
+              title: 'Help & Support',
+              content:
+                  'Contact us at support@handymenskills.ng or call +234 800 000 0000 for assistance.',
+            ),
           ),
           _SettingsTile(
             icon: Icons.description_outlined,
             title: 'Terms of Service',
-            onTap: () => _openTerms(context),
+            onTap: () => _showInfoDialog(
+              context,
+              title: 'Terms of Service',
+              content:
+                  'The Terms of Service page will be displayed here. This would typically open a web view or navigate to a dedicated terms screen.',
+            ),
           ),
           _SettingsTile(
-            icon: Icons.privacy_tip_outlined,
+            icon: Icons.shield_outlined,
             title: 'Privacy Policy',
-            onTap: () => _openPrivacy(context),
+            onTap: () => _showInfoDialog(
+              context,
+              title: 'Privacy Policy',
+              content:
+                  'The Privacy Policy page will be displayed here. This would typically open a web view or navigate to a dedicated privacy screen.',
+            ),
           ),
-          _SettingsTile(
-            icon: Icons.help_outline,
-            title: 'Help & Support',
-            onTap: () => _openHelp(context),
-          ),
-          const SizedBox(height: AppDimensions.md),
+          const SizedBox(height: AppDimensions.lg),
 
-          // Account section
-          _buildSectionHeader('Account'),
-          _SettingsTile(
-            icon: Icons.logout,
-            title: 'Sign Out',
-            iconColor: AppColors.error,
-            titleColor: AppColors.error,
-            showChevron: false,
-            onTap: () => _confirmSignOut(context, authController),
+          // Dark Mode toggle
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.screenPadding),
+            child: Row(
+              children: [
+                Container(
+                  width: 44,
+                  height: 44,
+                  decoration: BoxDecoration(
+                    color: AppColors.primary.withValues(alpha: 0.1),
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.radiusSm),
+                  ),
+                  child: const Icon(Icons.dark_mode_outlined,
+                      color: AppColors.primary, size: 22),
+                ),
+                const SizedBox(width: AppDimensions.md),
+                const Expanded(
+                  child: Text('Dark Mode',
+                      style: TextStyle(
+                          fontSize: 16, fontWeight: FontWeight.w500)),
+                ),
+                Obx(() => Switch.adaptive(
+                      value: themeController.isDark,
+                      activeColor: AppColors.primary,
+                      onChanged: (_) => themeController.toggleTheme(),
+                    )),
+              ],
+            ),
           ),
+          const SizedBox(height: AppDimensions.lg),
 
+          // Sign Out
+          Padding(
+            padding: const EdgeInsets.symmetric(
+                horizontal: AppDimensions.screenPadding),
+            child: SizedBox(
+              width: double.infinity,
+              height: AppDimensions.buttonHeight,
+              child: OutlinedButton(
+                onPressed: () => _confirmSignOut(context, authController),
+                style: OutlinedButton.styleFrom(
+                  foregroundColor: AppColors.error,
+                  side: const BorderSide(color: AppColors.error),
+                  shape: RoundedRectangleBorder(
+                    borderRadius:
+                        BorderRadius.circular(AppDimensions.buttonRadius),
+                  ),
+                ),
+                child: const Row(
+                  mainAxisAlignment: MainAxisAlignment.center,
+                  children: [
+                    Icon(Icons.logout, size: 20),
+                    SizedBox(width: 8),
+                    Text('Sign Out',
+                        style: TextStyle(
+                            fontSize: 16, fontWeight: FontWeight.w600)),
+                  ],
+                ),
+              ),
+            ),
+          ),
           const SizedBox(height: AppDimensions.xl),
 
-          // App version
+          // Version
           Center(
             child: Text(
-              'Artisan Marketplace v1.0.0',
+              'Handymenskills v1.0.0',
               style: AppTextStyles.caption,
             ),
           ),
@@ -105,58 +175,48 @@ class SettingsScreen extends StatelessWidget {
   ) {
     return Obx(() {
       final name = authController.userName;
-      final phone = authController.userPhone;
+      final email = authController.userEmail;
       final avatar = authController.userAvatar;
 
-      return InkWell(
-        onTap: () => context.push(AppRoutes.editProfile),
-        child: Padding(
-          padding: const EdgeInsets.symmetric(
-            horizontal: AppDimensions.screenPadding,
-            vertical: AppDimensions.md,
-          ),
-          child: Row(
-            children: [
-              AppAvatar(
-                imageUrl: avatar,
-                name: name,
-                size: AppDimensions.avatarLg,
-              ),
-              const SizedBox(width: AppDimensions.md),
-              Expanded(
-                child: Column(
-                  crossAxisAlignment: CrossAxisAlignment.start,
-                  children: [
-                    Text(
-                      name.isNotEmpty ? name : 'Set up your profile',
-                      style: AppTextStyles.h4,
-                      maxLines: 1,
-                      overflow: TextOverflow.ellipsis,
-                    ),
-                    if (phone.isNotEmpty) ...[
-                      const SizedBox(height: 2),
-                      Text(
-                        phone,
-                        style: AppTextStyles.bodySmall,
-                      ),
-                    ],
-                    const SizedBox(height: AppDimensions.xs),
-                    Text(
-                      'Edit Profile',
-                      style: AppTextStyles.bodySmall.copyWith(
-                        color: AppColors.primary,
-                        fontWeight: FontWeight.w500,
-                      ),
-                    ),
-                  ],
+      return Padding(
+        padding: const EdgeInsets.symmetric(
+          horizontal: AppDimensions.screenPadding,
+          vertical: AppDimensions.lg,
+        ),
+        child: Column(
+          children: [
+            AppAvatar(
+              imageUrl: avatar,
+              name: name,
+              size: AppDimensions.avatarXl,
+            ),
+            const SizedBox(height: AppDimensions.md),
+            Text(
+              name.isNotEmpty ? name : 'Set up your profile',
+              style: AppTextStyles.h3,
+            ),
+            if (email.isNotEmpty) ...[
+              const SizedBox(height: 4),
+              Text(email, style: AppTextStyles.bodySmall),
+            ],
+            const SizedBox(height: AppDimensions.md),
+            OutlinedButton(
+              onPressed: () => context.push(AppRoutes.editProfile),
+              style: OutlinedButton.styleFrom(
+                foregroundColor: AppColors.primary,
+                side: const BorderSide(color: AppColors.primary),
+                padding: const EdgeInsets.symmetric(
+                    horizontal: 24, vertical: 10),
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusFull),
                 ),
               ),
-              const Icon(
-                Icons.chevron_right,
-                color: AppColors.textHint,
-              ),
-            ],
-          ),
+              child: const Text('Edit Profile',
+                  style:
+                      TextStyle(fontSize: 14, fontWeight: FontWeight.w600)),
+            ),
+          ],
         ),
       );
     });
@@ -168,40 +228,7 @@ class SettingsScreen extends StatelessWidget {
         horizontal: AppDimensions.screenPadding,
         vertical: AppDimensions.sm,
       ),
-      child: Text(
-        title.toUpperCase(),
-        style: AppTextStyles.labelSmall.copyWith(
-          letterSpacing: 1.2,
-          color: AppColors.textHint,
-        ),
-      ),
-    );
-  }
-
-  void _openTerms(BuildContext context) {
-    _showInfoDialog(
-      context,
-      title: 'Terms of Service',
-      content:
-          'The Terms of Service page will be displayed here. This would typically open a web view or navigate to a dedicated terms screen.',
-    );
-  }
-
-  void _openPrivacy(BuildContext context) {
-    _showInfoDialog(
-      context,
-      title: 'Privacy Policy',
-      content:
-          'The Privacy Policy page will be displayed here. This would typically open a web view or navigate to a dedicated privacy screen.',
-    );
-  }
-
-  void _openHelp(BuildContext context) {
-    _showInfoDialog(
-      context,
-      title: 'Help & Support',
-      content:
-          'Contact us at support@artisanmarketplace.ng or call +234 800 000 0000 for assistance.',
+      child: Text(title, style: AppTextStyles.sectionHeader),
     );
   }
 
@@ -265,58 +292,31 @@ class SettingsScreen extends StatelessWidget {
 class _SettingsTile extends StatelessWidget {
   final IconData icon;
   final String title;
-  final String? subtitle;
-  final Widget? trailing;
   final VoidCallback? onTap;
-  final Color? iconColor;
-  final Color? titleColor;
-  final bool showChevron;
 
   const _SettingsTile({
     required this.icon,
     required this.title,
-    this.subtitle,
-    this.trailing,
     this.onTap,
-    this.iconColor,
-    this.titleColor,
-    this.showChevron = true,
   });
 
   @override
   Widget build(BuildContext context) {
     return ListTile(
       leading: Container(
-        width: 40,
-        height: 40,
+        width: 44,
+        height: 44,
         decoration: BoxDecoration(
-          color: (iconColor ?? AppColors.textSecondary)
-              .withValues(alpha: 0.1),
+          color: AppColors.primary.withValues(alpha: 0.1),
           borderRadius: BorderRadius.circular(AppDimensions.radiusSm),
         ),
-        child: Icon(
-          icon,
-          size: 22,
-          color: iconColor ?? AppColors.textSecondary,
-        ),
+        child: Icon(icon, size: 22, color: AppColors.primary),
       ),
       title: Text(
         title,
-        style: AppTextStyles.bodyMedium.copyWith(
-          fontWeight: FontWeight.w500,
-          color: titleColor,
-        ),
+        style: const TextStyle(fontSize: 16, fontWeight: FontWeight.w500),
       ),
-      subtitle: subtitle != null
-          ? Text(subtitle!, style: AppTextStyles.caption)
-          : null,
-      trailing: trailing ??
-          (showChevron
-              ? const Icon(
-                  Icons.chevron_right,
-                  color: AppColors.textHint,
-                )
-              : null),
+      trailing: const Icon(Icons.chevron_right, color: AppColors.textHint),
       contentPadding: const EdgeInsets.symmetric(
         horizontal: AppDimensions.screenPadding,
         vertical: 2,

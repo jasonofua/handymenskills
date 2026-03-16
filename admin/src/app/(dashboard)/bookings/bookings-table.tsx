@@ -13,9 +13,9 @@ import Link from "next/link";
 
 type BookingRow = {
   id: string;
-  booking_status: string;
+  status: string;
   agreed_price: number;
-  platform_fee: number;
+  platform_commission: number;
   worker_payout: number;
   created_at: string;
   jobs: { title: string } | null;
@@ -49,11 +49,11 @@ const columns: ColumnDef<BookingRow, unknown>[] = [
     cell: ({ row }) => formatNaira(row.original.agreed_price),
   },
   {
-    accessorKey: "booking_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.booking_status] || ""}>
-        {row.original.booking_status.replace(/_/g, " ")}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {row.original.status.replace(/_/g, " ")}
       </Badge>
     ),
   },
@@ -122,7 +122,7 @@ export function BookingsTable({
         <Select value={currentStatus} onValueChange={(v) => updateFilter("status", v)}>
           <option value="">All Statuses</option>
           <option value="pending">Pending</option>
-          <option value="accepted">Accepted</option>
+          <option value="confirmed">Confirmed</option>
           <option value="in_progress">In Progress</option>
           <option value="completed">Completed</option>
           <option value="cancelled">Cancelled</option>

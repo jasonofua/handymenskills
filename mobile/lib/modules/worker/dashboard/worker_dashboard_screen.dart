@@ -6,16 +6,18 @@ import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
 import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
+import '../../../controllers/auth_controller.dart';
 import '../../../controllers/worker_profile_controller.dart';
 import '../../../controllers/notification_controller.dart';
 import '../../../controllers/booking_controller.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../controllers/subscription_controller.dart';
 import '../../../routes/app_routes.dart';
+import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_badge.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_shimmer.dart';
 import '../../../widgets/common/app_status_badge.dart';
-import '../../../widgets/common/app_cached_image.dart';
 
 class WorkerDashboardScreen extends StatefulWidget {
   const WorkerDashboardScreen({super.key});
@@ -29,11 +31,15 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   final _notificationController = Get.find<NotificationController>();
   final _bookingController = Get.find<BookingController>();
   final _jobController = Get.find<JobController>();
+  final _authController = Get.find<AuthController>();
+  final _subscriptionController = Get.find<SubscriptionController>();
 
   @override
   void initState() {
     super.initState();
-    _loadData();
+    WidgetsBinding.instance.addPostFrameCallback((_) {
+      _loadData();
+    });
   }
 
   Future<void> _loadData() async {
@@ -42,133 +48,6 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
       _bookingController.loadBookings(role: 'worker', status: 'confirmed'),
       _jobController.loadJobs(refresh: true),
     ]);
-  }
-
-  @override
-  Widget build(BuildContext context) {
-    return Scaffold(
-      appBar: AppBar(
-        title: const Text('Dashboard'),
-        actions: [
-          Obx(() => IconButton(
-                onPressed: () => context.push(AppRoutes.notifications),
-                icon: AppBadge(
-                  count: _notificationController.unreadCount.value,
-                  child: const Icon(Icons.notifications_outlined),
-                ),
-              )),
-        ],
-      ),
-      body: RefreshIndicator(
-        onRefresh: _loadData,
-        child: Obx(() {
-          if (_workerProfileController.isLoading.value &&
-              _workerProfileController.workerProfile.isEmpty) {
-            return AppShimmer.list(count: 5);
-          }
-
-          return ListView(
-            padding: const EdgeInsets.all(AppDimensions.screenPadding),
-            children: [
-              _buildAvailabilityToggle(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildStatsRow(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildActiveBookingsSection(),
-              const SizedBox(height: AppDimensions.lg),
-              _buildRecommendedJobsSection(),
-            ],
-          );
-        }),
-      ),
-    );
-  }
-
-  Widget _buildAvailabilityToggle() {
-    return Obx(() {
-      final isAvailable = _workerProfileController.isAvailable.value;
-      return AppCard(
-        color: isAvailable
-            ? AppColors.success.withValues(alpha: 0.08)
-            : null,
-        child: Row(
-          children: [
-            Container(
-              width: 12,
-              height: 12,
-              decoration: BoxDecoration(
-                color: isAvailable ? AppColors.success : AppColors.textHint,
-                shape: BoxShape.circle,
-              ),
-            ),
-            const SizedBox(width: AppDimensions.sm),
-            Expanded(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    isAvailable ? 'Available for Work' : 'Unavailable',
-                    style: AppTextStyles.labelLarge,
-                  ),
-                  Text(
-                    isAvailable
-                        ? 'Clients can find and book you'
-                        : 'You won\'t appear in search results',
-                    style: AppTextStyles.bodySmall,
-                  ),
-                ],
-              ),
-            ),
-            Switch(
-              value: isAvailable,
-              onChanged: (_) => _workerProfileController.toggleAvailability(),
-              activeColor: AppColors.success,
-            ),
-          ],
-        ),
-      );
-    });
-  }
-
-  Widget _buildStatsRow() {
-    return Obx(() {
-      final profile = _workerProfileController.workerProfile;
-      final jobsCompleted = profile['jobs_completed'] ?? 0;
-      final avgRating = (profile['avg_rating'] ?? 0.0).toDouble();
-      final totalEarnings = (profile['total_earnings'] ?? 0.0).toDouble();
-
-      return Row(
-        children: [
-          Expanded(
-            child: _StatCard(
-              title: 'Jobs Completed',
-              value: jobsCompleted.toString(),
-              icon: Icons.check_circle_outline,
-              color: AppColors.success,
-            ),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-          Expanded(
-            child: _StatCard(
-              title: 'Avg Rating',
-              value: avgRating > 0 ? avgRating.toStringAsFixed(1) : '--',
-              icon: Icons.star_outline,
-              color: AppColors.ratingStar,
-            ),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-          Expanded(
-            child: _StatCard(
-              title: 'Earnings',
-              value:
-                  '${AppConstants.currencySymbol}${_formatCompact(totalEarnings)}',
-              icon: Icons.account_balance_wallet_outlined,
-              color: AppColors.primary,
-            ),
-          ),
-        ],
-      );
-    });
   }
 
   String _formatCompact(double value) {
@@ -180,21 +59,430 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
     return value.toStringAsFixed(0);
   }
 
-  Widget _buildActiveBookingsSection() {
+  String _formatAmount(double value) {
+    if (value >= 1000) {
+      final parts = value.toStringAsFixed(0).split('');
+      final buffer = StringBuffer();
+      for (var i = 0; i < parts.length; i++) {
+        if (i > 0 && (parts.length - i) % 3 == 0) {
+          buffer.write(',');
+        }
+        buffer.write(parts[i]);
+      }
+      return buffer.toString();
+    }
+    return value.toStringAsFixed(0);
+  }
+
+  String _formatBookingDate(String? dateStr) {
+    if (dateStr == null) return '';
+    final date = DateTime.tryParse(dateStr);
+    if (date == null) return dateStr;
+    final months = [
+      'Jan', 'Feb', 'Mar', 'Apr', 'May', 'Jun',
+      'Jul', 'Aug', 'Sep', 'Oct', 'Nov', 'Dec',
+    ];
+    final hour = date.hour > 12 ? date.hour - 12 : (date.hour == 0 ? 12 : date.hour);
+    final amPm = date.hour >= 12 ? 'PM' : 'AM';
+    return '${months[date.month - 1]} ${date.day}, ${date.year} - $hour:${date.minute.toString().padLeft(2, '0')} $amPm';
+  }
+
+  IconData _getJobIcon(String? category) {
+    switch (category?.toLowerCase()) {
+      case 'plumbing':
+        return Icons.plumbing;
+      case 'electrical':
+        return Icons.electrical_services;
+      case 'painting':
+        return Icons.format_paint;
+      case 'cleaning':
+        return Icons.cleaning_services;
+      case 'carpentry':
+        return Icons.carpenter;
+      case 'moving':
+        return Icons.local_shipping_outlined;
+      case 'gardening':
+        return Icons.grass;
+      default:
+        return Icons.build_outlined;
+    }
+  }
+
+  @override
+  Widget build(BuildContext context) {
+    return Scaffold(
+      backgroundColor: AppColors.background,
+      body: RefreshIndicator(
+        onRefresh: _loadData,
+        child: Obx(() {
+          if (_workerProfileController.isLoading.value &&
+              _workerProfileController.workerProfile.isEmpty) {
+            return AppShimmer.list(count: 5);
+          }
+
+          return ListView(
+            padding: EdgeInsets.only(
+              top: MediaQuery.of(context).padding.top + AppDimensions.md,
+              left: AppDimensions.screenPadding,
+              right: AppDimensions.screenPadding,
+              bottom: AppDimensions.xl,
+            ),
+            children: [
+              _buildHeader(),
+              const SizedBox(height: AppDimensions.lg),
+              _buildSubscriptionCard(),
+              const SizedBox(height: AppDimensions.lg),
+              _buildEarningsSummary(),
+              const SizedBox(height: AppDimensions.lg),
+              _buildStatsRow(),
+              const SizedBox(height: AppDimensions.lg),
+              _buildRecentBookingsSection(),
+            ],
+          );
+        }),
+      ),
+    );
+  }
+
+  Widget _buildHeader() {
+    return Obx(() {
+      final name = _authController.userName;
+      final avatar = _authController.userAvatar;
+      final isVerified =
+          _workerProfileController.workerProfile['verification_status'] == 'verified';
+
+      return Row(
+        children: [
+          AppAvatar(
+            imageUrl: avatar,
+            name: name,
+            size: AppDimensions.avatarLg,
+          ),
+          const SizedBox(width: AppDimensions.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'Welcome, ${name.isNotEmpty ? name.split(' ').first : 'Worker'}',
+                  style: AppTextStyles.h3,
+                ),
+                const SizedBox(height: AppDimensions.xs),
+                if (isVerified)
+                  Row(
+                    children: [
+                      Container(
+                        width: 8,
+                        height: 8,
+                        decoration: const BoxDecoration(
+                          color: AppColors.success,
+                          shape: BoxShape.circle,
+                        ),
+                      ),
+                      const SizedBox(width: 6),
+                      Text(
+                        'Verified Professional',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.success,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ],
+                  ),
+              ],
+            ),
+          ),
+          GestureDetector(
+            onTap: () => context.push(AppRoutes.notifications),
+            child: Obx(() => AppBadge(
+                  count: _notificationController.unreadCount.value,
+                  child: Container(
+                    width: 44,
+                    height: 44,
+                    decoration: BoxDecoration(
+                      color: AppColors.white,
+                      shape: BoxShape.circle,
+                      boxShadow: [
+                        BoxShadow(
+                          color: AppColors.black.withValues(alpha: 0.06),
+                          blurRadius: 8,
+                          offset: const Offset(0, 2),
+                        ),
+                      ],
+                    ),
+                    child: const Icon(
+                      Icons.notifications_outlined,
+                      color: AppColors.textPrimary,
+                      size: AppDimensions.iconMd,
+                    ),
+                  ),
+                )),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildSubscriptionCard() {
+    return Obx(() {
+      final subscription = _subscriptionController.currentSubscription.value;
+      final isActive = _subscriptionController.isActive;
+      final daysRemaining = _subscriptionController.daysRemaining;
+
+      final planName = subscription?['plan']?['name'] ?? subscription?['plan_name'] ?? 'Free';
+      final price = (subscription?['plan']?['price'] ?? subscription?['price'] ?? 0).toDouble();
+
+      return GestureDetector(
+        onTap: () => context.push(AppRoutes.workerSubscription),
+        child: Container(
+          padding: const EdgeInsets.all(AppDimensions.cardPadding),
+          decoration: BoxDecoration(
+            gradient: LinearGradient(
+              begin: Alignment.topLeft,
+              end: Alignment.bottomRight,
+              colors: [
+                AppColors.success.withValues(alpha: 0.12),
+                AppColors.primaryLight.withValues(alpha: 0.08),
+              ],
+            ),
+            borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+            border: Border.all(
+              color: AppColors.success.withValues(alpha: 0.2),
+            ),
+          ),
+          child: Column(
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Row(
+                mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                children: [
+                  Text(
+                    'Current Plan',
+                    style: AppTextStyles.bodySmall.copyWith(
+                      color: AppColors.textSecondary,
+                    ),
+                  ),
+                  if (isActive)
+                    Container(
+                      padding: const EdgeInsets.symmetric(horizontal: 10, vertical: 4),
+                      decoration: BoxDecoration(
+                        color: AppColors.success.withValues(alpha: 0.15),
+                        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+                      ),
+                      child: Text(
+                        'ACTIVE',
+                        style: TextStyle(
+                          color: AppColors.success,
+                          fontSize: 10,
+                          fontWeight: FontWeight.w700,
+                          letterSpacing: 0.5,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              const SizedBox(height: AppDimensions.sm),
+              Row(
+                crossAxisAlignment: CrossAxisAlignment.end,
+                children: [
+                  Text(
+                    planName,
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.primaryDark,
+                    ),
+                  ),
+                  const SizedBox(width: AppDimensions.sm),
+                  if (price > 0)
+                    Padding(
+                      padding: const EdgeInsets.only(bottom: 2),
+                      child: Text(
+                        '${AppConstants.currencySymbol}${_formatCompact(price)}/month',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.textSecondary,
+                          fontWeight: FontWeight.w500,
+                        ),
+                      ),
+                    ),
+                ],
+              ),
+              if (isActive && daysRemaining > 0) ...[
+                const SizedBox(height: AppDimensions.sm),
+                Row(
+                  children: [
+                    Icon(
+                      Icons.autorenew,
+                      size: 14,
+                      color: AppColors.textHint,
+                    ),
+                    const SizedBox(width: 4),
+                    Text(
+                      'Renews in $daysRemaining days',
+                      style: AppTextStyles.caption,
+                    ),
+                  ],
+                ),
+              ],
+            ],
+          ),
+        ),
+      );
+    });
+  }
+
+  Widget _buildEarningsSummary() {
+    return Obx(() {
+      final profile = _workerProfileController.workerProfile;
+      final totalEarnings = (profile['total_earnings'] ?? 0.0).toDouble();
+      final pendingPayout = (profile['pending_payout'] ?? 0.0).toDouble();
+
+      return Row(
+        children: [
+          Expanded(
+            child: AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'This Month',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  Text(
+                    '${AppConstants.currencySymbol}${_formatAmount(totalEarnings)}',
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.xs),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.arrow_upward,
+                        size: 12,
+                        color: AppColors.success,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          '12% vs last month',
+                          style: AppTextStyles.caption.copyWith(
+                            color: AppColors.success,
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+          const SizedBox(width: AppDimensions.sm),
+          Expanded(
+            child: AppCard(
+              child: Column(
+                crossAxisAlignment: CrossAxisAlignment.start,
+                children: [
+                  Text(
+                    'Pending Payout',
+                    style: AppTextStyles.bodySmall,
+                  ),
+                  const SizedBox(height: AppDimensions.sm),
+                  Text(
+                    '${AppConstants.currencySymbol}${_formatAmount(pendingPayout)}',
+                    style: AppTextStyles.h3.copyWith(
+                      color: AppColors.textPrimary,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.xs),
+                  Row(
+                    children: [
+                      Icon(
+                        Icons.schedule,
+                        size: 12,
+                        color: AppColors.textHint,
+                      ),
+                      const SizedBox(width: 2),
+                      Flexible(
+                        child: Text(
+                          'Next payout: Friday',
+                          style: AppTextStyles.caption.copyWith(
+                            fontSize: 11,
+                          ),
+                          maxLines: 1,
+                          overflow: TextOverflow.ellipsis,
+                        ),
+                      ),
+                    ],
+                  ),
+                ],
+              ),
+            ),
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildStatsRow() {
+    return Obx(() {
+      final profile = _workerProfileController.workerProfile;
+      final jobsCompleted = profile['jobs_completed'] ?? 0;
+      final avgRating = (profile['avg_rating'] ?? 0.0).toDouble();
+      final responseRate = (profile['response_rate'] ?? 0.0).toDouble();
+
+      return Row(
+        mainAxisAlignment: MainAxisAlignment.spaceEvenly,
+        children: [
+          _CircularStat(
+            label: 'Jobs Done',
+            value: jobsCompleted.toString(),
+            color: AppColors.primary,
+            icon: null,
+          ),
+          _CircularStat(
+            label: 'Avg. Rating',
+            value: avgRating > 0 ? avgRating.toStringAsFixed(1) : '--',
+            color: AppColors.ratingStar,
+            icon: Icons.star,
+          ),
+          _CircularStat(
+            label: 'Response',
+            value: '${responseRate.toStringAsFixed(0)}%',
+            color: AppColors.info,
+            icon: null,
+          ),
+        ],
+      );
+    });
+  }
+
+  Widget _buildRecentBookingsSection() {
     return Column(
       crossAxisAlignment: CrossAxisAlignment.start,
       children: [
         Row(
           mainAxisAlignment: MainAxisAlignment.spaceBetween,
           children: [
-            const Text('Active Bookings', style: AppTextStyles.h4),
-            TextButton(
-              onPressed: () => context.push(AppRoutes.workerBookings),
-              child: const Text('See All'),
+            Text(
+              'RECENT BOOKINGS',
+              style: AppTextStyles.sectionHeader,
+            ),
+            GestureDetector(
+              onTap: () => context.push(AppRoutes.workerBookings),
+              child: Text(
+                'View All',
+                style: AppTextStyles.bodySmall.copyWith(
+                  color: AppColors.primary,
+                  fontWeight: FontWeight.w600,
+                ),
+              ),
             ),
           ],
         ),
-        const SizedBox(height: AppDimensions.sm),
+        const SizedBox(height: AppDimensions.md),
         Obx(() {
           final bookings = _bookingController.bookings;
 
@@ -211,14 +499,25 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
                 padding: const EdgeInsets.all(AppDimensions.md),
                 child: Row(
                   children: [
-                    Icon(Icons.calendar_today_outlined,
-                        color: AppColors.textHint, size: 40),
+                    Container(
+                      width: 48,
+                      height: 48,
+                      decoration: BoxDecoration(
+                        color: AppColors.primary.withValues(alpha: 0.08),
+                        shape: BoxShape.circle,
+                      ),
+                      child: Icon(
+                        Icons.calendar_today_outlined,
+                        color: AppColors.textHint,
+                        size: 22,
+                      ),
+                    ),
                     const SizedBox(width: AppDimensions.md),
                     Expanded(
                       child: Column(
                         crossAxisAlignment: CrossAxisAlignment.start,
                         children: [
-                          Text('No active bookings',
+                          Text('No recent bookings',
                               style: AppTextStyles.labelLarge),
                           const SizedBox(height: 4),
                           Text('Apply to jobs to get started',
@@ -232,96 +531,23 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
             );
           }
 
-          return SizedBox(
-            height: 160,
-            child: ListView.separated(
-              scrollDirection: Axis.horizontal,
-              itemCount: bookings.length,
-              separatorBuilder: (_, __) =>
-                  const SizedBox(width: AppDimensions.sm),
-              itemBuilder: (context, index) {
-                final booking = bookings[index];
-                return _BookingCard(
-                  booking: booking,
-                  onTap: () {
-                    final id = booking['id'] as String;
-                    context.push(
-                      AppRoutes.workerBookingDetail.replaceFirst(':id', id),
-                    );
-                  },
-                );
-              },
-            ),
-          );
-        }),
-      ],
-    );
-  }
-
-  Widget _buildRecommendedJobsSection() {
-    return Column(
-      crossAxisAlignment: CrossAxisAlignment.start,
-      children: [
-        Row(
-          mainAxisAlignment: MainAxisAlignment.spaceBetween,
-          children: [
-            const Text('Recommended Jobs', style: AppTextStyles.h4),
-            TextButton(
-              onPressed: () => context.push(AppRoutes.workerJobFeed),
-              child: const Text('See All'),
-            ),
-          ],
-        ),
-        const SizedBox(height: AppDimensions.sm),
-        Obx(() {
-          final jobs = _jobController.jobs;
-
-          if (_jobController.isLoading.value && jobs.isEmpty) {
-            return AppShimmer.list(count: 3);
-          }
-
-          if (jobs.isEmpty) {
-            return AppCard(
-              child: Padding(
-                padding: const EdgeInsets.all(AppDimensions.md),
-                child: Row(
-                  children: [
-                    Icon(Icons.work_outline,
-                        color: AppColors.textHint, size: 40),
-                    const SizedBox(width: AppDimensions.md),
-                    Expanded(
-                      child: Column(
-                        crossAxisAlignment: CrossAxisAlignment.start,
-                        children: [
-                          Text('No jobs available',
-                              style: AppTextStyles.labelLarge),
-                          const SizedBox(height: 4),
-                          Text('Check back later for new opportunities',
-                              style: AppTextStyles.bodySmall),
-                        ],
-                      ),
-                    ),
-                  ],
-                ),
-              ),
-            );
-          }
-
-          final displayJobs = jobs.take(5).toList();
+          final displayBookings = bookings.take(5).toList();
           return ListView.separated(
             shrinkWrap: true,
             physics: const NeverScrollableScrollPhysics(),
-            itemCount: displayJobs.length,
+            itemCount: displayBookings.length,
             separatorBuilder: (_, __) =>
                 const SizedBox(height: AppDimensions.sm),
             itemBuilder: (context, index) {
-              final job = displayJobs[index];
-              return _RecommendedJobCard(
-                job: job,
+              final booking = displayBookings[index];
+              return _BookingListCard(
+                booking: booking,
+                getJobIcon: _getJobIcon,
+                formatDate: _formatBookingDate,
                 onTap: () {
-                  final id = job['id'] as String;
+                  final id = booking['id'] as String;
                   context.push(
-                    AppRoutes.workerJobDetail.replaceFirst(':id', id),
+                    AppRoutes.workerBookingDetail.replaceFirst(':id', id),
                   );
                 },
               );
@@ -333,50 +559,76 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   }
 }
 
-class _StatCard extends StatelessWidget {
-  final String title;
+class _CircularStat extends StatelessWidget {
+  final String label;
   final String value;
-  final IconData icon;
   final Color color;
+  final IconData? icon;
 
-  const _StatCard({
-    required this.title,
+  const _CircularStat({
+    required this.label,
     required this.value,
-    required this.icon,
     required this.color,
+    this.icon,
   });
 
   @override
   Widget build(BuildContext context) {
-    return AppCard(
-      padding: const EdgeInsets.all(AppDimensions.sm),
-      child: Column(
-        children: [
-          Icon(icon, color: color, size: AppDimensions.iconLg),
-          const SizedBox(height: AppDimensions.xs),
-          Text(
-            value,
-            style: AppTextStyles.h3.copyWith(color: color),
+    return Column(
+      children: [
+        Container(
+          width: 72,
+          height: 72,
+          decoration: BoxDecoration(
+            shape: BoxShape.circle,
+            color: color.withValues(alpha: 0.08),
+            border: Border.all(
+              color: color.withValues(alpha: 0.3),
+              width: 2.5,
+            ),
           ),
-          const SizedBox(height: 2),
-          Text(
-            title,
-            style: AppTextStyles.caption,
-            textAlign: TextAlign.center,
-            maxLines: 1,
-            overflow: TextOverflow.ellipsis,
+          child: Center(
+            child: icon != null
+                ? Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      Text(
+                        value,
+                        style: AppTextStyles.h4.copyWith(color: color),
+                      ),
+                      const SizedBox(width: 2),
+                      Icon(icon, color: color, size: 14),
+                    ],
+                  )
+                : Text(
+                    value,
+                    style: AppTextStyles.h4.copyWith(color: color),
+                  ),
           ),
-        ],
-      ),
+        ),
+        const SizedBox(height: AppDimensions.sm),
+        Text(
+          label,
+          style: AppTextStyles.caption,
+          textAlign: TextAlign.center,
+        ),
+      ],
     );
   }
 }
 
-class _BookingCard extends StatelessWidget {
+class _BookingListCard extends StatelessWidget {
   final Map<String, dynamic> booking;
   final VoidCallback onTap;
+  final IconData Function(String?) getJobIcon;
+  final String Function(String?) formatDate;
 
-  const _BookingCard({required this.booking, required this.onTap});
+  const _BookingListCard({
+    required this.booking,
+    required this.onTap,
+    required this.getJobIcon,
+    required this.formatDate,
+  });
 
   @override
   Widget build(BuildContext context) {
@@ -384,126 +636,65 @@ class _BookingCard extends StatelessWidget {
     final clientName = booking['client']?['full_name'] ?? 'Client';
     final status = booking['status'] ?? 'pending';
     final price = (booking['agreed_price'] ?? 0.0).toDouble();
-
-    return GestureDetector(
-      onTap: onTap,
-      child: Container(
-        width: 260,
-        padding: const EdgeInsets.all(AppDimensions.cardPadding),
-        decoration: BoxDecoration(
-          color: Theme.of(context).cardColor,
-          borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
-          boxShadow: [
-            BoxShadow(
-              color: AppColors.black.withValues(alpha: 0.05),
-              blurRadius: 10,
-              offset: const Offset(0, 2),
-            ),
-          ],
-        ),
-        child: Column(
-          crossAxisAlignment: CrossAxisAlignment.start,
-          children: [
-            Row(
-              children: [
-                Expanded(
-                  child: Text(
-                    jobTitle,
-                    style: AppTextStyles.labelLarge,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-                AppStatusBadge.booking(status),
-              ],
-            ),
-            const SizedBox(height: AppDimensions.sm),
-            Row(
-              children: [
-                const Icon(Icons.person_outline,
-                    size: 16, color: AppColors.textSecondary),
-                const SizedBox(width: 4),
-                Expanded(
-                  child: Text(
-                    clientName,
-                    style: AppTextStyles.bodySmall,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
-                ),
-              ],
-            ),
-            const Spacer(),
-            Text(
-              '${AppConstants.currencySymbol}${price.toStringAsFixed(0)}',
-              style: AppTextStyles.priceSmall,
-            ),
-          ],
-        ),
-      ),
-    );
-  }
-}
-
-class _RecommendedJobCard extends StatelessWidget {
-  final Map<String, dynamic> job;
-  final VoidCallback onTap;
-
-  const _RecommendedJobCard({required this.job, required this.onTap});
-
-  @override
-  Widget build(BuildContext context) {
-    final title = job['title'] ?? 'Untitled Job';
-    final category = job['category']?['name'] ?? '';
-    final budgetMin = (job['budget_min'] ?? 0.0).toDouble();
-    final budgetMax = (job['budget_max'] ?? 0.0).toDouble();
-    final urgency = job['urgency'] ?? 'normal';
-    final location = job['location_text'] ?? '';
+    final category = booking['job']?['category']?['name'] as String?;
+    final scheduledAt = booking['scheduled_at'] as String? ??
+        booking['created_at'] as String?;
 
     return AppCard(
       onTap: onTap,
-      child: Column(
-        crossAxisAlignment: CrossAxisAlignment.start,
+      child: Row(
         children: [
-          Row(
-            children: [
-              Expanded(
-                child: Text(
-                  title,
+          Container(
+            width: 44,
+            height: 44,
+            decoration: BoxDecoration(
+              color: AppColors.primary.withValues(alpha: 0.08),
+              shape: BoxShape.circle,
+            ),
+            child: Icon(
+              getJobIcon(category),
+              color: AppColors.primary,
+              size: 22,
+            ),
+          ),
+          const SizedBox(width: AppDimensions.md),
+          Expanded(
+            child: Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  jobTitle,
                   style: AppTextStyles.labelLarge,
                   maxLines: 1,
                   overflow: TextOverflow.ellipsis,
                 ),
-              ),
-              AppStatusBadge.urgency(urgency),
-            ],
-          ),
-          const SizedBox(height: AppDimensions.sm),
-          if (category.isNotEmpty)
-            Padding(
-              padding: const EdgeInsets.only(bottom: 4),
-              child: Text(category, style: AppTextStyles.bodySmall),
-            ),
-          Row(
-            children: [
-              Text(
-                '${AppConstants.currencySymbol}${budgetMin.toStringAsFixed(0)} - ${AppConstants.currencySymbol}${budgetMax.toStringAsFixed(0)}',
-                style: AppTextStyles.priceSmall,
-              ),
-              const Spacer(),
-              if (location.isNotEmpty) ...[
-                const Icon(Icons.location_on_outlined,
-                    size: 14, color: AppColors.textHint),
-                const SizedBox(width: 2),
-                Flexible(
-                  child: Text(
-                    location,
-                    style: AppTextStyles.caption,
-                    maxLines: 1,
-                    overflow: TextOverflow.ellipsis,
-                  ),
+                const SizedBox(height: 2),
+                Text(
+                  'Client: $clientName',
+                  style: AppTextStyles.bodySmall,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
+                ),
+                const SizedBox(height: 2),
+                Text(
+                  formatDate(scheduledAt),
+                  style: AppTextStyles.caption,
+                  maxLines: 1,
+                  overflow: TextOverflow.ellipsis,
                 ),
               ],
+            ),
+          ),
+          const SizedBox(width: AppDimensions.sm),
+          Column(
+            crossAxisAlignment: CrossAxisAlignment.end,
+            children: [
+              AppStatusBadge.booking(status),
+              const SizedBox(height: AppDimensions.sm),
+              Text(
+                '${AppConstants.currencySymbol}${price.toStringAsFixed(0)}',
+                style: AppTextStyles.priceSmall,
+              ),
             ],
           ),
         ],

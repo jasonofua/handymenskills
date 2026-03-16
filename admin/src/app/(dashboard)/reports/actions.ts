@@ -19,7 +19,7 @@ export async function resolveReport(
 
   const { data: current } = await admin
     .from("reports")
-    .select("report_status, reported_id")
+    .select("status, reported_id")
     .eq("id", reportId)
     .single();
 
@@ -28,7 +28,7 @@ export async function resolveReport(
   const { error } = await admin
     .from("reports")
     .update({
-      report_status: resolution,
+      status: resolution,
       resolution_notes: notes,
       resolved_by: user.id,
       resolved_at: new Date().toISOString(),
@@ -60,8 +60,8 @@ export async function resolveReport(
     action: `report_${resolution}`,
     entity_type: "reports",
     entity_id: reportId,
-    old_data: { report_status: current.report_status },
-    new_data: { report_status: resolution, notes },
+    old_data: { status: current.status },
+    new_data: { status: resolution, notes },
   });
 
   revalidatePath("/reports");

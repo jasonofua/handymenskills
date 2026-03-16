@@ -15,7 +15,6 @@ import '../controllers/subscription_controller.dart';
 import '../controllers/review_controller.dart';
 import '../controllers/location_controller.dart';
 import '../controllers/dispute_controller.dart';
-import '../controllers/map_controller.dart';
 import '../data/repositories/auth_repository.dart';
 import '../data/repositories/profile_repository.dart';
 import '../data/repositories/notification_repository.dart';
@@ -82,6 +81,5 @@ class InitialBindings extends Bindings {
     Get.lazyPut(() => ReviewController(), fenix: true);
     Get.lazyPut(() => LocationController(), fenix: true);
     Get.lazyPut(() => DisputeController(), fenix: true);
-    Get.lazyPut(() => MapController(), fenix: true);
   }
 }
