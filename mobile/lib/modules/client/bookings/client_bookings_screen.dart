@@ -192,7 +192,7 @@ class _ClientBookingsScreenState extends State<ClientBookingsScreen> {
                   ? filtered
                   : filtered.where((b) {
                       final jobTitle = (b['jobs'] as Map<String, dynamic>?)?['title']?.toString().toLowerCase() ?? '';
-                      final workerName = (b['profiles!bookings_worker_id_fkey'] as Map<String, dynamic>?)?['full_name']?.toString().toLowerCase() ?? '';
+                      final workerName = (b['worker'] as Map<String, dynamic>?)?['full_name']?.toString().toLowerCase() ?? '';
                       final query = _searchQuery.value;
                       return jobTitle.contains(query) || workerName.contains(query);
                     }).toList();
@@ -219,10 +219,11 @@ class _ClientBookingsScreenState extends State<ClientBookingsScreen> {
                     final booking = searchFiltered[index];
                     return _BookingCard(
                       booking: booking,
-                      onTap: () {
+                      onTap: () async {
                         final id = booking['id']?.toString() ?? '';
-                        context.push(AppRoutes.clientBookingDetail
+                        await context.push(AppRoutes.clientBookingDetail
                             .replaceFirst(':id', id));
+                        _bookingController.loadBookings(role: 'client');
                       },
                       onMessage: () => _onMessage(booking),
                     );
@@ -238,7 +239,7 @@ class _ClientBookingsScreenState extends State<ClientBookingsScreen> {
 
   Future<void> _onMessage(Map<String, dynamic> booking) async {
     final workerId = booking['worker_id']?.toString() ??
-        (booking['profiles!bookings_worker_id_fkey']
+        (booking['worker']
                 as Map<String, dynamic>?)?['id']
             ?.toString();
     if (workerId == null) return;
@@ -305,7 +306,7 @@ class _BookingCard extends StatelessWidget {
   Widget build(BuildContext context) {
     final status = booking['status']?.toString() ?? 'pending';
     final workerProfile =
-        booking['profiles!bookings_worker_id_fkey'] as Map<String, dynamic>?;
+        booking['worker'] as Map<String, dynamic>?;
     final workerName = workerProfile?['full_name']?.toString() ?? 'Worker';
     final workerAvatar = workerProfile?['avatar_url']?.toString();
     final jobData = booking['jobs'] as Map<String, dynamic>?;

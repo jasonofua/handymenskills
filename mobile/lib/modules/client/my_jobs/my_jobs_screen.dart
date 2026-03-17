@@ -251,10 +251,11 @@ class _MyJobsScreenState extends State<MyJobsScreen> {
                     final job = filteredJobs[index];
                     return _JobCard(
                       job: job,
-                      onTap: () {
+                      onTap: () async {
                         final id = job['id']?.toString() ?? '';
-                        context.push(AppRoutes.clientJobDetail
+                        await context.push(AppRoutes.clientJobDetail
                             .replaceFirst(':id', id));
+                        _jobController.loadMyJobs();
                       },
                     );
                   },
@@ -342,7 +343,25 @@ class _JobCard extends StatelessWidget {
     final createdAt = job['created_at']?.toString() ?? '';
     final assignedWorker = job['assigned_worker']?['full_name']?.toString() ??
         job['assigned_worker_name']?.toString();
-    final rating = job['rating'];
+    // Extract rating from bookings → reviews
+    dynamic rating;
+    final rawBookings = job['bookings'];
+    if (rawBookings != null) {
+      Map<String, dynamic>? booking;
+      if (rawBookings is List && rawBookings.isNotEmpty) {
+        booking = rawBookings[0] as Map<String, dynamic>?;
+      } else if (rawBookings is Map) {
+        booking = Map<String, dynamic>.from(rawBookings);
+      }
+      if (booking != null) {
+        final rawReviews = booking['reviews'];
+        if (rawReviews is List && rawReviews.isNotEmpty) {
+          rating = rawReviews[0]['overall_rating'];
+        } else if (rawReviews is Map) {
+          rating = rawReviews['overall_rating'];
+        }
+      }
+    }
     final completedAt = job['completed_at']?.toString();
 
     String budget = '';

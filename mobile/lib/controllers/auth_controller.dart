@@ -50,7 +50,10 @@ class AuthController extends GetxController {
   }
 
   Future<void> _loadProfile() async {
-    if (currentUser.value == null) return;
+    final user = currentUser.value ?? supabase.auth.currentUser;
+    if (user == null) return;
+    currentUser.value = user;
+    isLoggedIn.value = true;
     try {
       final data = await _profileRepo.getMyProfile();
       profile.assignAll(data);
@@ -150,6 +153,10 @@ class AuthController extends GetxController {
   Future<void> signOut() async {
     try {
       await _authRepo.signOut();
+      currentUser.value = null;
+      isLoggedIn.value = false;
+      profile.clear();
+      userRole.value = '';
     } catch (e) {
       AppSnackbar.error('Failed to sign out');
     }

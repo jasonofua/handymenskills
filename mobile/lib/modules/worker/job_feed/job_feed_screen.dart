@@ -8,6 +8,7 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/notification_controller.dart';
+import '../../../data/repositories/skill_repository.dart';
 import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_badge.dart';
@@ -27,6 +28,7 @@ class _JobFeedScreenState extends State<JobFeedScreen> {
   final _jobController = Get.find<JobController>();
   final _notificationController = Get.find<NotificationController>();
   final _scrollController = ScrollController();
+  final _categories = <Map<String, dynamic>>[].obs;
 
   @override
   void initState() {
@@ -34,7 +36,15 @@ class _JobFeedScreenState extends State<JobFeedScreen> {
     _scrollController.addListener(_onScroll);
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _jobController.loadJobs(refresh: true);
+      _loadCategories();
     });
+  }
+
+  Future<void> _loadCategories() async {
+    try {
+      final data = await Get.find<SkillRepository>().getCategories();
+      _categories.assignAll(data);
+    } catch (_) {}
   }
 
   @override
@@ -89,6 +99,10 @@ class _JobFeedScreenState extends State<JobFeedScreen> {
                   final jobs = _jobController.jobs;
                   final isLoading = _jobController.isLoading.value;
                   final isLoadingMore = _jobController.isLoadingMore.value;
+                  // Convert to regular Map at top-level to force Obx to
+                  // subscribe to appliedJobIds changes. itemBuilder is lazy
+                  // and runs outside the reactive tracking window.
+                  final appliedIds = Map<String, bool>.from(_jobController.appliedJobIds);
 
                   if (isLoading && jobs.isEmpty) {
                     return AppShimmer.list(count: 6);
@@ -122,17 +136,20 @@ class _JobFeedScreenState extends State<JobFeedScreen> {
                       }
 
                       final job = jobs[index];
+                      final jobId = job['id'] as String;
+                      final isApplied = appliedIds[jobId] == true;
                       return Padding(
                         padding:
                             const EdgeInsets.only(bottom: AppDimensions.md),
                         child: _JobFeedCard(
                           job: job,
-                          onTap: () {
-                            final id = job['id'] as String;
-                            context.push(
+                          isApplied: isApplied,
+                          onTap: () async {
+                            await context.push(
                               AppRoutes.workerJobDetail
-                                  .replaceFirst(':id', id),
+                                  .replaceFirst(':id', jobId),
                             );
+                            _jobController.loadJobs(refresh: true);
                           },
                         ),
                       );
@@ -249,61 +266,342 @@ class _JobFeedScreenState extends State<JobFeedScreen> {
   }
 
   Widget _buildFilterChips() {
-    final filters = ['Category', 'Urgency', 'Budget', 'Distance'];
     return SizedBox(
       height: 44,
-      child: ListView.separated(
-        scrollDirection: Axis.horizontal,
-        padding: const EdgeInsets.symmetric(
-          horizontal: AppDimensions.screenPadding,
-        ),
-        itemCount: filters.length,
-        separatorBuilder: (_, __) =>
+      child: Obx(() {
+        final hasCategory = _jobController.selectedCategory.value.isNotEmpty;
+        final hasUrgency = _jobController.selectedUrgency.value.isNotEmpty;
+        final hasBudget = _jobController.filterBudgetMin.value > 0 ||
+            _jobController.filterBudgetMax.value > 0;
+        final hasAny = hasCategory || hasUrgency || hasBudget;
+
+        String categoryLabel = 'Category';
+        if (hasCategory) {
+          final match = _categories.firstWhereOrNull(
+              (c) => c['id'] == _jobController.selectedCategory.value);
+          if (match != null) categoryLabel = match['name'] ?? 'Category';
+        }
+
+        String urgencyLabel = 'Urgency';
+        if (hasUrgency) {
+          urgencyLabel = _jobController.selectedUrgency.value[0].toUpperCase() +
+              _jobController.selectedUrgency.value.substring(1);
+        }
+
+        String budgetLabel = 'Budget';
+        if (hasBudget) {
+          final min = _jobController.filterBudgetMin.value;
+          final max = _jobController.filterBudgetMax.value;
+          if (min > 0 && max > 0) {
+            budgetLabel =
+                '${AppConstants.currencySymbol}${min.toStringAsFixed(0)} - ${AppConstants.currencySymbol}${max.toStringAsFixed(0)}';
+          } else if (min > 0) {
+            budgetLabel = '${AppConstants.currencySymbol}${min.toStringAsFixed(0)}+';
+          } else {
+            budgetLabel =
+                'Up to ${AppConstants.currencySymbol}${max.toStringAsFixed(0)}';
+          }
+        }
+
+        return ListView(
+          scrollDirection: Axis.horizontal,
+          padding: const EdgeInsets.symmetric(
+            horizontal: AppDimensions.screenPadding,
+          ),
+          children: [
+            if (hasAny) ...[
+              _buildChip(
+                label: 'Clear',
+                isActive: true,
+                activeColor: AppColors.error,
+                icon: Icons.close,
+                onTap: () {
+                  _jobController.clearFilters();
+                  _jobController.loadJobs(refresh: true);
+                },
+              ),
+              const SizedBox(width: AppDimensions.sm),
+            ],
+            _buildChip(
+              label: categoryLabel,
+              isActive: hasCategory,
+              onTap: () => _showCategoryFilter(context),
+            ),
             const SizedBox(width: AppDimensions.sm),
-        itemBuilder: (context, index) {
-          return _FilterChip(label: filters[index]);
-        },
+            _buildChip(
+              label: urgencyLabel,
+              isActive: hasUrgency,
+              onTap: () => _showUrgencyFilter(context),
+            ),
+            const SizedBox(width: AppDimensions.sm),
+            _buildChip(
+              label: budgetLabel,
+              isActive: hasBudget,
+              onTap: () => _showBudgetFilter(context),
+            ),
+          ],
+        );
+      }),
+    );
+  }
+
+  Widget _buildChip({
+    required String label,
+    required bool isActive,
+    required VoidCallback onTap,
+    Color? activeColor,
+    IconData? icon,
+  }) {
+    final color = activeColor ?? AppColors.primary;
+    return GestureDetector(
+      onTap: onTap,
+      child: Container(
+        padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
+        decoration: BoxDecoration(
+          color: isActive ? color.withValues(alpha: 0.1) : AppColors.surface,
+          borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
+          border: Border.all(
+            color: isActive ? color : AppColors.border,
+          ),
+        ),
+        child: Row(
+          mainAxisSize: MainAxisSize.min,
+          children: [
+            if (icon != null) ...[
+              Icon(icon, size: 14, color: color),
+              const SizedBox(width: 4),
+            ],
+            Text(
+              label,
+              style: AppTextStyles.bodySmall.copyWith(
+                color: isActive ? color : AppColors.textSecondary,
+                fontWeight: isActive ? FontWeight.w600 : FontWeight.w500,
+              ),
+            ),
+            if (icon == null) ...[
+              const SizedBox(width: 4),
+              Icon(
+                Icons.keyboard_arrow_down,
+                size: 18,
+                color: isActive ? color : AppColors.textSecondary,
+              ),
+            ],
+          ],
+        ),
       ),
     );
   }
-}
 
-// ---------------------------------------------------------------------------
-// Filter Chip (visual-only dropdown style)
-// ---------------------------------------------------------------------------
-
-class _FilterChip extends StatelessWidget {
-  final String label;
-
-  const _FilterChip({required this.label});
-
-  @override
-  Widget build(BuildContext context) {
-    return Container(
-      padding: const EdgeInsets.symmetric(horizontal: 14, vertical: 8),
-      decoration: BoxDecoration(
-        color: AppColors.surface,
-        borderRadius: BorderRadius.circular(AppDimensions.radiusFull),
-        border: Border.all(color: AppColors.border),
+  void _showCategoryFilter(BuildContext context) {
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusLg),
+        ),
       ),
-      child: Row(
-        mainAxisSize: MainAxisSize.min,
-        children: [
-          Text(
-            label,
-            style: AppTextStyles.bodySmall.copyWith(
-              color: AppColors.textSecondary,
-              fontWeight: FontWeight.w500,
-            ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppDimensions.screenPadding,
+                    AppDimensions.md,
+                    AppDimensions.screenPadding,
+                    AppDimensions.sm),
+                child: Text('Select Category', style: AppTextStyles.h4),
+              ),
+              const Divider(height: 1),
+              Obx(() {
+                final selected = _jobController.selectedCategory.value;
+                return Flexible(
+                  child: ListView(
+                    shrinkWrap: true,
+                    children: [
+                      ListTile(
+                        title: const Text('All Categories'),
+                        leading: Icon(
+                          selected.isEmpty
+                              ? Icons.radio_button_checked
+                              : Icons.radio_button_off,
+                          color: selected.isEmpty
+                              ? AppColors.primary
+                              : AppColors.textHint,
+                          size: 20,
+                        ),
+                        onTap: () {
+                          _jobController.selectedCategory.value = '';
+                          _jobController.loadJobs(refresh: true);
+                          Navigator.pop(ctx);
+                        },
+                      ),
+                      ..._categories.map((cat) {
+                        final id = cat['id'] as String;
+                        final name = cat['name'] ?? '';
+                        final isSelected = selected == id;
+                        return ListTile(
+                          title: Text(name),
+                          leading: Icon(
+                            isSelected
+                                ? Icons.radio_button_checked
+                                : Icons.radio_button_off,
+                            color: isSelected
+                                ? AppColors.primary
+                                : AppColors.textHint,
+                            size: 20,
+                          ),
+                          onTap: () {
+                            _jobController.selectedCategory.value = id;
+                            _jobController.loadJobs(refresh: true);
+                            Navigator.pop(ctx);
+                          },
+                        );
+                      }),
+                    ],
+                  ),
+                );
+              }),
+            ],
           ),
-          const SizedBox(width: 4),
-          const Icon(
-            Icons.keyboard_arrow_down,
-            size: 18,
-            color: AppColors.textSecondary,
-          ),
-        ],
+        );
+      },
+    );
+  }
+
+  void _showUrgencyFilter(BuildContext context) {
+    final urgencyOptions = [
+      {'value': '', 'label': 'All'},
+      {'value': 'low', 'label': 'Low'},
+      {'value': 'normal', 'label': 'Normal'},
+      {'value': 'urgent', 'label': 'Urgent'},
+      {'value': 'emergency', 'label': 'Emergency'},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusLg),
+        ),
       ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppDimensions.screenPadding,
+                    AppDimensions.md,
+                    AppDimensions.screenPadding,
+                    AppDimensions.sm),
+                child: Text('Select Urgency', style: AppTextStyles.h4),
+              ),
+              const Divider(height: 1),
+              Obx(() {
+                final selected = _jobController.selectedUrgency.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: urgencyOptions.map((opt) {
+                    final val = opt['value']!;
+                    final isSelected = selected == val;
+                    return ListTile(
+                      title: Text(opt['label']!),
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textHint,
+                        size: 20,
+                      ),
+                      onTap: () {
+                        _jobController.selectedUrgency.value = val;
+                        _jobController.loadJobs(refresh: true);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }).toList(),
+                );
+              }),
+            ],
+          ),
+        );
+      },
+    );
+  }
+
+  void _showBudgetFilter(BuildContext context) {
+    final budgetRanges = [
+      {'label': 'All Budgets', 'min': 0.0, 'max': 0.0},
+      {'label': 'Under ${AppConstants.currencySymbol}5,000', 'min': 0.0, 'max': 5000.0},
+      {'label': '${AppConstants.currencySymbol}5,000 - ${AppConstants.currencySymbol}20,000', 'min': 5000.0, 'max': 20000.0},
+      {'label': '${AppConstants.currencySymbol}20,000 - ${AppConstants.currencySymbol}50,000', 'min': 20000.0, 'max': 50000.0},
+      {'label': '${AppConstants.currencySymbol}50,000 - ${AppConstants.currencySymbol}100,000', 'min': 50000.0, 'max': 100000.0},
+      {'label': 'Over ${AppConstants.currencySymbol}100,000', 'min': 100000.0, 'max': 0.0},
+    ];
+
+    showModalBottomSheet(
+      context: context,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.radiusLg),
+        ),
+      ),
+      builder: (ctx) {
+        return SafeArea(
+          child: Column(
+            mainAxisSize: MainAxisSize.min,
+            crossAxisAlignment: CrossAxisAlignment.start,
+            children: [
+              Padding(
+                padding: const EdgeInsets.fromLTRB(
+                    AppDimensions.screenPadding,
+                    AppDimensions.md,
+                    AppDimensions.screenPadding,
+                    AppDimensions.sm),
+                child: Text('Select Budget Range', style: AppTextStyles.h4),
+              ),
+              const Divider(height: 1),
+              Obx(() {
+                final currentMin = _jobController.filterBudgetMin.value;
+                final currentMax = _jobController.filterBudgetMax.value;
+                return Column(
+                  mainAxisSize: MainAxisSize.min,
+                  children: budgetRanges.map((range) {
+                    final min = range['min'] as double;
+                    final max = range['max'] as double;
+                    final isSelected = currentMin == min && currentMax == max;
+                    return ListTile(
+                      title: Text(range['label'] as String),
+                      leading: Icon(
+                        isSelected
+                            ? Icons.radio_button_checked
+                            : Icons.radio_button_off,
+                        color: isSelected
+                            ? AppColors.primary
+                            : AppColors.textHint,
+                        size: 20,
+                      ),
+                      onTap: () {
+                        _jobController.filterBudgetMin.value = min;
+                        _jobController.filterBudgetMax.value = max;
+                        _jobController.loadJobs(refresh: true);
+                        Navigator.pop(ctx);
+                      },
+                    );
+                  }).toList(),
+                );
+              }),
+            ],
+          ),
+        );
+      },
     );
   }
 }
@@ -315,23 +613,30 @@ class _FilterChip extends StatelessWidget {
 class _JobFeedCard extends StatelessWidget {
   final Map<String, dynamic> job;
   final VoidCallback onTap;
+  final bool isApplied;
 
-  const _JobFeedCard({required this.job, required this.onTap});
+  const _JobFeedCard({required this.job, required this.onTap, this.isApplied = false});
 
   @override
   Widget build(BuildContext context) {
     final title = job['title'] ?? 'Untitled Job';
     final description = job['description'] ?? '';
-    final category = job['category']?['name'] ?? '';
+    final categoryData = job['categories'] as Map<String, dynamic>?;
+    final category = categoryData?['name'] ?? '';
     final budgetMin = (job['budget_min'] ?? 0.0).toDouble();
     final budgetMax = (job['budget_max'] ?? 0.0).toDouble();
     final urgency = job['urgency'] ?? 'normal';
-    final location = job['location_text'] ?? '';
+    final address = job['address'] ?? '';
+    final city = job['city'] ?? '';
+    final state = job['state'] ?? '';
+    final location = [address, city, state]
+        .where((s) => (s as String).isNotEmpty)
+        .join(', ');
     final createdAt = job['created_at'] as String?;
     final applicantCount = job['application_count'] ?? job['applicant_count'] ?? 0;
 
     // Client info
-    final client = job['client'] as Map<String, dynamic>?;
+    final client = job['profiles'] as Map<String, dynamic>?;
     final clientName = client?['full_name'] ?? client?['name'] ?? 'Client';
     final clientAvatar = client?['avatar_url'] as String?;
     final clientVerified = client?['is_verified'] ?? false;
@@ -491,14 +796,19 @@ class _JobFeedCard extends StatelessWidget {
 
               const Spacer(),
 
-              // Apply Now button
+              // Apply Now / Applied button
               SizedBox(
                 height: 32,
                 child: ElevatedButton(
                   onPressed: onTap,
                   style: ElevatedButton.styleFrom(
-                    backgroundColor: AppColors.primary,
-                    foregroundColor: AppColors.white,
+                    backgroundColor: isApplied
+                        ? AppColors.success.withValues(alpha: 0.15)
+                        : AppColors.primary,
+                    foregroundColor: isApplied
+                        ? AppColors.success
+                        : AppColors.white,
+                    minimumSize: Size.zero,
                     padding: const EdgeInsets.symmetric(
                       horizontal: AppDimensions.md,
                     ),
@@ -507,12 +817,22 @@ class _JobFeedCard extends StatelessWidget {
                           AppDimensions.radiusSm),
                     ),
                     elevation: 0,
+                    tapTargetSize: MaterialTapTargetSize.shrinkWrap,
                     textStyle: const TextStyle(
                       fontSize: 12,
                       fontWeight: FontWeight.w600,
                     ),
                   ),
-                  child: const Text('Apply Now'),
+                  child: Row(
+                    mainAxisSize: MainAxisSize.min,
+                    children: [
+                      if (isApplied) ...[
+                        const Icon(Icons.check_circle, size: 14),
+                        const SizedBox(width: 4),
+                      ],
+                      Text(isApplied ? 'Applied' : 'Apply Now'),
+                    ],
+                  ),
                 ),
               ),
             ],

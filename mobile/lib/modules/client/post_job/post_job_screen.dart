@@ -8,6 +8,7 @@ import 'package:image_picker/image_picker.dart';
 
 import '../../../controllers/auth_controller.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../controllers/payment_controller.dart';
 import '../../../controllers/worker_profile_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../config/theme/app_colors.dart';
@@ -154,6 +155,40 @@ class _PostJobScreenState extends State<PostJobScreen> {
   Future<void> _submitJob() async {
     if (_isSubmitting) return;
     if (!_validateCurrentStep()) return;
+
+    // Check wallet balance against minimum budget
+    final paymentController = Get.find<PaymentController>();
+    final budgetMin = double.tryParse(_budgetMinController.text) ?? AppConstants.minBudget;
+    if (paymentController.walletBalance.value < budgetMin) {
+      if (!mounted) return;
+      final topUp = await showDialog<bool>(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Insufficient Balance'),
+          content: Text(
+            'Your wallet balance (${AppConstants.currencySymbol}${paymentController.walletBalance.value.toStringAsFixed(0)}) '
+            'is less than the minimum budget (${AppConstants.currencySymbol}${budgetMin.toStringAsFixed(0)}).\n\n'
+            'Please top up your wallet to continue.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx, false),
+              child: const Text('Cancel'),
+            ),
+            ElevatedButton(
+              onPressed: () => Navigator.pop(ctx, true),
+              style: ElevatedButton.styleFrom(backgroundColor: AppColors.primary),
+              child: const Text('Top Up Wallet', style: TextStyle(color: Colors.white)),
+            ),
+          ],
+        ),
+      );
+      if (topUp == true && mounted) {
+        context.push(AppRoutes.clientDashboard);
+      }
+      return;
+    }
+
     setState(() => _isSubmitting = true);
 
     try {

@@ -139,13 +139,14 @@ class _MyApplicationsScreenState extends State<MyApplicationsScreen> {
                           const EdgeInsets.only(bottom: AppDimensions.md),
                       child: _ApplicationCard(
                         application: application,
-                        onTap: () {
+                        onTap: () async {
                           final jobId = application['job_id'] as String?;
                           if (jobId != null) {
-                            context.push(
+                            await context.push(
                               AppRoutes.workerJobDetail
                                   .replaceFirst(':id', jobId),
                             );
+                            _applicationController.loadMyApplications();
                           }
                         },
                         onWithdraw: application['status'] == 'pending'
@@ -218,10 +219,16 @@ class _ApplicationCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jobTitle = application['job']?['title'] ?? 'Job';
-    final jobCategory = application['job']?['category']?['name'] as String?;
+    final jobData = application['jobs'] as Map<String, dynamic>?;
+    final jobTitle = jobData?['title'] ?? 'Job';
+    final jobCategory = (jobData?['categories'] as Map<String, dynamic>?)?['name'] as String?;
     final proposedPrice = (application['proposed_price'] ?? 0.0).toDouble();
-    final status = application['status'] ?? 'pending';
+    final appStatus = application['status'] ?? 'pending';
+    final jobStatus = jobData?['status'] as String?;
+    // Show job status when application is accepted and job has progressed
+    final status = (appStatus == 'accepted' && jobStatus != null && jobStatus != 'open')
+        ? jobStatus
+        : appStatus;
     final createdAt = DateTime.tryParse(application['created_at'] ?? '');
     final estimatedDuration = application['estimated_duration'] as String?;
 
@@ -243,7 +250,9 @@ class _ApplicationCard extends StatelessWidget {
                 ),
               ),
               const SizedBox(width: AppDimensions.sm),
-              AppStatusBadge.application(status),
+              status == appStatus
+                  ? AppStatusBadge.application(status)
+                  : AppStatusBadge.job(status),
             ],
           ),
           const SizedBox(height: AppDimensions.sm),

@@ -153,6 +153,8 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
                 _buildJobDetails(job),
                 const SizedBox(height: AppDimensions.md),
                 _buildLocationSection(job),
+                const SizedBox(height: AppDimensions.md),
+                _buildAssignedWorkerSection(job),
                 const SizedBox(height: AppDimensions.lg),
                 _buildApplicationsSection(),
               ],
@@ -348,6 +350,126 @@ class _ClientJobDetailScreenState extends State<ClientJobDetailScreen> {
           ),
         ],
       ),
+    );
+  }
+
+  Widget _buildAssignedWorkerSection(Map<String, dynamic> job) {
+    final status = job['status']?.toString() ?? 'open';
+    // Only show for jobs that have moved past 'open'
+    if (status == 'open' || status == 'draft') return const SizedBox.shrink();
+
+    final rawBookings = job['bookings'];
+    Map<String, dynamic>? booking;
+    if (rawBookings is List && rawBookings.isNotEmpty) {
+      booking = rawBookings[0] as Map<String, dynamic>;
+    } else if (rawBookings is Map) {
+      booking = Map<String, dynamic>.from(rawBookings);
+    }
+    if (booking == null) return const SizedBox.shrink();
+
+    final bookingId = booking['id']?.toString() ?? '';
+    final bookingStatus = booking['status']?.toString() ?? '';
+    final workerProfile = booking['worker'] as Map<String, dynamic>?;
+    final workerName = workerProfile?['full_name']?.toString() ?? 'Worker';
+    final avatarUrl = workerProfile?['avatar_url']?.toString();
+    final workerId = booking['worker_id']?.toString() ?? '';
+    final rawReviews = booking['reviews'];
+    final hasReview = rawReviews is List ? rawReviews.isNotEmpty : rawReviews is Map;
+
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        const Text('ASSIGNED WORKER', style: AppTextStyles.sectionHeader),
+        const SizedBox(height: AppDimensions.sm),
+        AppCard(
+          child: Column(
+            children: [
+              InkWell(
+                onTap: () {
+                  if (workerId.isNotEmpty) {
+                    context.push(AppRoutes.clientWorkerProfile.replaceFirst(':id', workerId));
+                  }
+                },
+                child: Row(
+                  children: [
+                    AppAvatar(
+                      imageUrl: avatarUrl,
+                      name: workerName,
+                      size: AppDimensions.avatarMd,
+                    ),
+                    const SizedBox(width: AppDimensions.md),
+                    Expanded(
+                      child: Column(
+                        crossAxisAlignment: CrossAxisAlignment.start,
+                        children: [
+                          Text(workerName, style: AppTextStyles.labelLarge),
+                          const SizedBox(height: 2),
+                          AppStatusBadge.booking(bookingStatus),
+                        ],
+                      ),
+                    ),
+                    const Icon(Icons.chevron_right, color: AppColors.textHint),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.md),
+              Row(
+                children: [
+                  Expanded(
+                    child: OutlinedButton(
+                      onPressed: () {
+                        if (bookingId.isNotEmpty) {
+                          context.push(AppRoutes.clientBookingDetail.replaceFirst(':id', bookingId));
+                        }
+                      },
+                      style: OutlinedButton.styleFrom(
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+                        ),
+                      ),
+                      child: const Text('View Booking'),
+                    ),
+                  ),
+                  if ((bookingStatus == 'client_confirmed' || bookingStatus == 'completed') && !hasReview) ...[
+                    const SizedBox(width: AppDimensions.md),
+                    Expanded(
+                      child: ElevatedButton(
+                        onPressed: () {
+                          if (bookingId.isNotEmpty) {
+                            context.push(AppRoutes.writeReview.replaceFirst(':bookingId', bookingId));
+                          }
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.primary,
+                          foregroundColor: AppColors.white,
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+                          ),
+                        ),
+                        child: const Text('Rate Worker'),
+                      ),
+                    ),
+                  ],
+                  if (hasReview) ...[
+                    const SizedBox(width: AppDimensions.md),
+                    Expanded(
+                      child: OutlinedButton(
+                        onPressed: null,
+                        style: OutlinedButton.styleFrom(
+                          shape: RoundedRectangleBorder(
+                            borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+                          ),
+                        ),
+                        child: const Text('Reviewed'),
+                      ),
+                    ),
+                  ],
+                ],
+              ),
+            ],
+          ),
+        ),
+      ],
     );
   }
 
@@ -584,8 +706,8 @@ class _ApplicationCard extends StatelessWidget {
   @override
   Widget build(BuildContext context) {
     final status = application['status']?.toString() ?? 'pending';
-    final profile = application['profiles'] as Map<String, dynamic>?;
     final workerProfile = application['worker_profiles'] as Map<String, dynamic>?;
+    final profile = workerProfile?['profiles'] as Map<String, dynamic>?;
     final name = profile?['full_name']?.toString() ?? 'Worker';
     final avatarUrl = profile?['avatar_url']?.toString();
     final rating = workerProfile?['average_rating'];

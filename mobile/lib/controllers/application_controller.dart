@@ -9,8 +9,16 @@ class ApplicationController extends GetxController {
 
   final RxList<Map<String, dynamic>> myApplications = <Map<String, dynamic>>[].obs;
   final RxList<Map<String, dynamic>> jobApplications = <Map<String, dynamic>>[].obs;
+  final RxSet<String> appliedJobIds = <String>{}.obs;
   final RxBool isLoading = false.obs;
   final RxBool isSubmitting = false.obs;
+
+  Future<void> loadAppliedJobIds() async {
+    try {
+      final ids = await _appRepo.getAppliedJobIds(_authController.userId);
+      appliedJobIds.assignAll(ids);
+    } catch (_) {}
+  }
 
   Future<void> loadMyApplications({String? status}) async {
     try {
@@ -53,6 +61,7 @@ class ApplicationController extends GetxController {
         proposedPrice,
         estimatedDuration: estimatedDuration,
       );
+      appliedJobIds.add(jobId);
       AppSnackbar.success('Application submitted!');
       return true;
     } catch (e) {
@@ -72,6 +81,14 @@ class ApplicationController extends GetxController {
     }
   }
 
+  Future<bool> hasAppliedToJob(String jobId) async {
+    try {
+      return await _appRepo.hasAppliedToJob(_authController.userId, jobId);
+    } catch (e) {
+      return false;
+    }
+  }
+
   Future<void> withdrawApplication(String applicationId) async {
     try {
       await _appRepo.withdrawApplication(applicationId);
@@ -82,17 +99,27 @@ class ApplicationController extends GetxController {
     }
   }
 
-  Future<void> acceptApplication(String applicationId) async {
+  Future<Map<String, dynamic>?> acceptApplication(String applicationId) async {
     try {
-      await _appRepo.acceptApplication(applicationId);
+      final booking = await _appRepo.acceptApplication(applicationId);
+      // Update accepted application in list
       final index = jobApplications.indexWhere((a) => a['id'] == applicationId);
       if (index != -1) {
         jobApplications[index] = {...jobApplications[index], 'status': 'accepted'};
-        jobApplications.refresh();
       }
-      AppSnackbar.success('Application accepted');
+      // Mark other applications as rejected
+      for (var i = 0; i < jobApplications.length; i++) {
+        if (jobApplications[i]['id'] != applicationId &&
+            jobApplications[i]['status'] == 'pending') {
+          jobApplications[i] = {...jobApplications[i], 'status': 'rejected'};
+        }
+      }
+      jobApplications.refresh();
+      AppSnackbar.success('Application accepted. Booking created!');
+      return booking;
     } catch (e) {
       AppSnackbar.error('Failed to accept application');
+      return null;
     }
   }
 

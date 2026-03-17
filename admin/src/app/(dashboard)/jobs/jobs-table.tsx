@@ -14,7 +14,7 @@ import Link from "next/link";
 type JobRow = {
   id: string;
   title: string;
-  job_status: string;
+  status: string;
   urgency: string;
   budget_min: number | null;
   budget_max: number | null;
@@ -43,11 +43,11 @@ const columns: ColumnDef<JobRow, unknown>[] = [
     cell: ({ row }) => row.original.categories?.name || "-",
   },
   {
-    accessorKey: "job_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.job_status] || ""}>
-        {row.original.job_status.replace(/_/g, " ")}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {(row.original.status || "unknown").replace(/_/g, " ")}
       </Badge>
     ),
   },
@@ -56,7 +56,7 @@ const columns: ColumnDef<JobRow, unknown>[] = [
     header: "Urgency",
     cell: ({ row }) => (
       <Badge className={urgencyColors[row.original.urgency] || ""}>
-        {row.original.urgency}
+        {row.original.urgency || "normal"}
       </Badge>
     ),
   },

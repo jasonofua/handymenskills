@@ -50,8 +50,8 @@ export default async function JobDetailPage({ params }: Props) {
                 <CardTitle>{job.title}</CardTitle>
               </div>
               <div className="flex gap-2">
-                <Badge className={statusColors[job.job_status] || ""}>
-                  {job.job_status.replace(/_/g, " ")}
+                <Badge className={statusColors[job.status] || ""}>
+                  {(job.status || "unknown").replace(/_/g, " ")}
                 </Badge>
                 <Badge className={urgencyColors[job.urgency] || ""}>
                   {job.urgency}

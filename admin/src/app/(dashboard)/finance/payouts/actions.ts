@@ -13,19 +13,18 @@ export async function processPayout(payoutId: string) {
 
   const { data: payout } = await admin
     .from("payouts")
-    .select("payout_status")
+    .select("status")
     .eq("id", payoutId)
     .single();
 
   if (!payout) return { error: "Payout not found" };
-  if (payout.payout_status !== "pending") return { error: "Payout is not in pending status" };
+  if (payout.status !== "pending") return { error: "Payout is not in pending status" };
 
   const { error } = await admin
     .from("payouts")
     .update({
-      payout_status: "completed",
+      status: "completed",
       processed_at: new Date().toISOString(),
-      processed_by: user.id,
     })
     .eq("id", payoutId);
 
@@ -36,8 +35,8 @@ export async function processPayout(payoutId: string) {
     action: "process_payout",
     entity_type: "payouts",
     entity_id: payoutId,
-    old_data: { payout_status: "pending" },
-    new_data: { payout_status: "completed" },
+    old_data: { status: "pending" },
+    new_data: { status: "completed" },
   });
 
   revalidatePath("/finance/payouts");

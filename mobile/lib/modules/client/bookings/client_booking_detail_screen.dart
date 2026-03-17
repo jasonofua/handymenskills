@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:supabase_flutter/supabase_flutter.dart';
 
 import '../../../controllers/booking_controller.dart';
 import '../../../controllers/chat_controller.dart';
@@ -254,7 +255,7 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
   }
 
   Widget _buildWorkerInfoCard(Map<String, dynamic> booking) {
-    final workerProfile = booking['profiles!bookings_worker_id_fkey']
+    final workerProfile = booking['worker']
         as Map<String, dynamic>?;
     final name = workerProfile?['full_name']?.toString() ?? 'Worker';
     final avatarUrl = workerProfile?['avatar_url']?.toString();
@@ -350,6 +351,11 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
     final createdAt = booking['created_at']?.toString() ?? '';
     final completedAt = booking['completed_at']?.toString();
     final notes = booking['notes']?.toString();
+    final priceNum = (agreedPrice is num)
+        ? agreedPrice.toDouble()
+        : double.tryParse(agreedPrice?.toString() ?? '') ?? 0.0;
+    final platformFee = priceNum * AppConstants.commissionRate;
+    final workerPayout = priceNum - platformFee;
 
     return AppCard(
       child: Column(
@@ -357,13 +363,24 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
         children: [
           const Text('Booking Info', style: AppTextStyles.labelLarge),
           const SizedBox(height: AppDimensions.sm),
-          if (agreedPrice != null)
+          if (agreedPrice != null) ...[
             _InfoRow(
               icon: Icons.payments_outlined,
               label: 'Agreed Price',
-              value: '${AppConstants.currencySymbol}${agreedPrice is num ? agreedPrice.toStringAsFixed(0) : agreedPrice}',
+              value: '${AppConstants.currencySymbol}${priceNum.toStringAsFixed(0)}',
               valueStyle: AppTextStyles.priceSmall,
             ),
+            _InfoRow(
+              icon: Icons.account_balance_outlined,
+              label: 'Platform Fee (${(AppConstants.commissionRate * 100).toInt()}%)',
+              value: '${AppConstants.currencySymbol}${platformFee.toStringAsFixed(0)}',
+            ),
+            _InfoRow(
+              icon: Icons.person_outline,
+              label: 'Worker Payout',
+              value: '${AppConstants.currencySymbol}${workerPayout.toStringAsFixed(0)}',
+            ),
+          ],
           _InfoRow(
             icon: Icons.calendar_today,
             label: 'Created',
@@ -395,7 +412,8 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
   Widget _buildActionButtons(Map<String, dynamic> booking) {
     final status = booking['status']?.toString() ?? 'pending';
     final bookingId = widget.bookingId;
-    final hasReview = (booking['reviews'] as List?)?.isNotEmpty ?? false;
+    final rawReviews = booking['reviews'];
+    final hasReview = rawReviews is List ? rawReviews.isNotEmpty : rawReviews is Map;
 
     return Column(
       crossAxisAlignment: CrossAxisAlignment.stretch,
@@ -404,11 +422,18 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
         if (status == 'completed')
           Obx(() => SizedBox(
             height: AppDimensions.buttonHeight,
-            child: ElevatedButton.icon(
+            child: ElevatedButton(
               onPressed: _bookingController.isProcessing.value
                   ? null
                   : () => _confirmAndPay(bookingId),
-              icon: _bookingController.isProcessing.value
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                shape: RoundedRectangleBorder(
+                  borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+                ),
+              ),
+              child: _bookingController.isProcessing.value
                   ? const SizedBox(
                       width: 18,
                       height: 18,
@@ -417,27 +442,19 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
                         valueColor: AlwaysStoppedAnimation(AppColors.white),
                       ),
                     )
-                  : const Icon(Icons.payment),
-              label: const Text('Confirm & Pay'),
-              style: ElevatedButton.styleFrom(
-                backgroundColor: AppColors.primary,
-                foregroundColor: AppColors.white,
-                shape: RoundedRectangleBorder(
-                  borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
-                ),
-              ),
+                  : const Text('Confirm & Pay'),
             ),
           )),
 
-        if (status == 'client_confirmed' && !hasReview)
+        if ((status == 'client_confirmed' || status == 'completed') && !hasReview) ...[
+          if (status == 'completed')
+            const SizedBox(height: AppDimensions.sm),
           SizedBox(
             height: AppDimensions.buttonHeight,
-            child: ElevatedButton.icon(
+            child: ElevatedButton(
               onPressed: () {
                 context.push(AppRoutes.writeReview.replaceFirst(':bookingId', bookingId));
               },
-              icon: const Icon(Icons.rate_review),
-              label: const Text('Write Review'),
               style: ElevatedButton.styleFrom(
                 backgroundColor: AppColors.secondary,
                 foregroundColor: AppColors.white,
@@ -445,15 +462,17 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
                   borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                 ),
               ),
+              child: const Text('Rate Worker'),
             ),
           ),
+        ],
 
         // Chat with worker - always available unless cancelled
         if (status != 'cancelled' && status != 'disputed') ...[
           const SizedBox(height: AppDimensions.sm),
           SizedBox(
             height: AppDimensions.buttonHeight,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: () async {
                 final workerId = _bookingController.currentBooking['worker_id']?.toString() ?? '';
                 if (workerId.isEmpty) return;
@@ -463,13 +482,12 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
                   context.push(AppRoutes.chatConversation.replaceFirst(':id', conversationId));
                 }
               },
-              icon: const Icon(Icons.chat_outlined),
-              label: const Text('Chat with Worker'),
               style: OutlinedButton.styleFrom(
                 shape: RoundedRectangleBorder(
                   borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                 ),
               ),
+              child: const Text('Chat with Worker'),
             ),
           ),
         ],
@@ -479,13 +497,8 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
           const SizedBox(height: AppDimensions.sm),
           SizedBox(
             height: AppDimensions.buttonHeight,
-            child: OutlinedButton.icon(
+            child: OutlinedButton(
               onPressed: () => _cancelBooking(bookingId),
-              icon: const Icon(Icons.cancel_outlined, color: AppColors.error),
-              label: const Text(
-                'Cancel Booking',
-                style: TextStyle(color: AppColors.error),
-              ),
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.error,
                 side: const BorderSide(color: AppColors.error),
@@ -493,6 +506,7 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
                   borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                 ),
               ),
+              child: const Text('Cancel Booking'),
             ),
           ),
         ],
@@ -502,12 +516,11 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
           const SizedBox(height: AppDimensions.sm),
           SizedBox(
             height: AppDimensions.buttonSmallHeight,
-            child: TextButton.icon(
+            child: TextButton(
               onPressed: () {
                 context.push(AppRoutes.createDispute.replaceFirst(':bookingId', bookingId));
               },
-              icon: const Icon(Icons.flag_outlined, size: 18, color: AppColors.error),
-              label: const Text(
+              child: const Text(
                 'Report a Problem',
                 style: TextStyle(color: AppColors.error, fontSize: 13),
               ),
@@ -519,13 +532,53 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
   }
 
   Future<void> _confirmAndPay(String bookingId) async {
+    final agreedPrice = _bookingController.currentBooking['agreed_price'];
+    final amount = (agreedPrice is num)
+        ? agreedPrice.toDouble()
+        : double.tryParse(agreedPrice.toString()) ?? 0.0;
+
+    if (amount <= 0) {
+      AppSnackbar.error('Invalid payment amount');
+      return;
+    }
+
+    // Load latest wallet balance before showing dialog
+    final paymentController = Get.find<PaymentController>();
+    await paymentController.loadWalletBalance();
+    final balance = paymentController.walletBalance.value;
+
+    if (balance < amount) {
+      if (!mounted) return;
+      await showDialog(
+        context: context,
+        builder: (ctx) => AlertDialog(
+          title: const Text('Insufficient Balance'),
+          content: Text(
+            'Your wallet balance (${AppConstants.currencySymbol}${balance.toStringAsFixed(0)}) '
+            'is not enough to pay ${AppConstants.currencySymbol}${amount.toStringAsFixed(0)}. '
+            'Please top up your wallet first.',
+          ),
+          actions: [
+            TextButton(
+              onPressed: () => Navigator.pop(ctx),
+              child: const Text('OK'),
+            ),
+          ],
+        ),
+      );
+      return;
+    }
+
+    if (!mounted) return;
+
     final confirmed = await showDialog<bool>(
       context: context,
       builder: (ctx) => AlertDialog(
         title: const Text('Confirm & Pay'),
-        content: const Text(
+        content: Text(
           'By confirming, you acknowledge that the work has been '
-          'completed satisfactorily. Payment will be released to the worker.',
+          'completed satisfactorily. ${AppConstants.currencySymbol}${amount.toStringAsFixed(0)} '
+          'will be deducted from your wallet balance.',
         ),
         actions: [
           TextButton(
@@ -542,22 +595,11 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
     );
 
     if (confirmed == true) {
-      final agreedPrice = _bookingController.currentBooking['agreed_price'];
-      final amount = (agreedPrice is num)
-          ? agreedPrice.toDouble()
-          : double.tryParse(agreedPrice.toString()) ?? 0.0;
-
-      if (amount <= 0) {
-        AppSnackbar.error('Invalid payment amount');
-        return;
-      }
-
       if (!mounted) return;
 
-      final paymentSuccess = await Get.find<PaymentController>().processPayment(
-        context: context,
+      final paymentSuccess = await paymentController.payFromWallet(
         amountInNaira: amount,
-        paymentType: 'booking',
+        paymentType: 'booking_payment',
         bookingId: bookingId,
       );
 
@@ -566,8 +608,23 @@ class _ClientBookingDetailScreenState extends State<ClientBookingDetailScreen> {
           'client_confirm',
           bookingId,
         );
-        if (success && mounted) {
-          AppSnackbar.success('Payment confirmed successfully');
+        if (success) {
+          // Payout record is already created by the process_booking_action DB function
+
+          // Update job status to completed
+          final jobId = _bookingController.currentBooking['job_id']?.toString();
+          if (jobId != null && jobId.isNotEmpty) {
+            try {
+              await Supabase.instance.client
+                  .from('jobs')
+                  .update({'status': 'completed'})
+                  .eq('id', jobId);
+            } catch (_) {}
+          }
+
+          if (mounted) {
+            AppSnackbar.success('Payment confirmed successfully');
+          }
         }
       }
     }

@@ -21,16 +21,23 @@ export default async function RevenuePage() {
     const monthEnd = new Date(now.getFullYear(), now.getMonth() - i + 1, 0, 23, 59, 59);
     const monthLabel = monthStart.toLocaleDateString("en-US", { month: "short", year: "2-digit" });
 
-    const { data: payments, count } = await supabase
+    const { count } = await supabase
       .from("payments")
       .select("amount", { count: "exact" })
       .eq("status", "success")
       .gte("created_at", monthStart.toISOString())
       .lte("created_at", monthEnd.toISOString());
 
-    const gmv = payments?.reduce((sum, p) => sum + (p.amount || 0), 0) || 0;
-    const revenue = gmv;
-    const payouts = 0;
+    const { data: monthBookings } = await supabase
+      .from("bookings")
+      .select("platform_commission, worker_payout")
+      .in("status", ["completed", "client_confirmed"])
+      .gte("created_at", monthStart.toISOString())
+      .lte("created_at", monthEnd.toISOString());
+
+    const revenue = monthBookings?.reduce((sum, b) => sum + (b.platform_commission || 0), 0) || 0;
+    const payouts = monthBookings?.reduce((sum, b) => sum + (b.worker_payout || 0), 0) || 0;
+    const gmv = revenue + payouts;
 
     totalRevenue += revenue;
     totalPayouts += payouts;

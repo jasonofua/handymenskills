@@ -36,7 +36,7 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
   final _statusFilters = const [
     'in_progress',
     'confirmed',
-    'completed',
+    'completed,client_confirmed',
     'cancelled',
   ];
 
@@ -113,12 +113,13 @@ class _WorkerBookingsScreenState extends State<WorkerBookingsScreen>
                         const EdgeInsets.only(bottom: AppDimensions.sm),
                     child: _BookingListCard(
                       booking: booking,
-                      onTap: () {
+                      onTap: () async {
                         final id = booking['id'] as String;
-                        context.push(
+                        await context.push(
                           AppRoutes.workerBookingDetail
                               .replaceFirst(':id', id),
                         );
+                        _bookingController.loadBookings(role: 'worker');
                       },
                     ),
                   );
@@ -155,10 +156,11 @@ class _BookingListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jobTitle = booking['job']?['title'] ?? 'Job';
+    final jobTitle = booking['jobs']?['title'] ?? 'Job';
     final clientName = booking['client']?['full_name'] ?? 'Client';
     final status = booking['status'] ?? 'pending';
     final agreedPrice = (booking['agreed_price'] ?? 0.0).toDouble();
+    final workerPayout = agreedPrice * (1 - AppConstants.commissionRate);
     final scheduledDate = DateTime.tryParse(booking['scheduled_date'] ?? '');
 
     return AppCard(
@@ -201,7 +203,7 @@ class _BookingListCard extends StatelessWidget {
           Row(
             children: [
               Text(
-                '${AppConstants.currencySymbol}${agreedPrice.toStringAsFixed(0)}',
+                '${AppConstants.currencySymbol}${workerPayout.toStringAsFixed(0)}',
                 style: AppTextStyles.priceSmall,
               ),
               const Spacer(),

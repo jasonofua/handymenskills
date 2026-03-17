@@ -5,13 +5,23 @@ import 'package:supabase_flutter/supabase_flutter.dart';
 import '../../config/supabase_config.dart';
 
 class WorkerRepository {
-  /// Fetches a worker profile by [userId], including skills data.
+  /// Fetches a worker profile by auth [userId] or worker_profiles [id],
+  /// including skills data.
   Future<Map<String, dynamic>?> getWorkerProfile(String userId) async {
     try {
-      final response = await supabase
+      // Try by auth user_id first
+      var response = await supabase
           .from('worker_profiles')
-          .select('*, worker_skills(*, skills(*))')
+          .select('*, profiles(*), worker_skills(*, skills(*))')
           .eq('user_id', userId)
+          .maybeSingle();
+      if (response != null) return response;
+
+      // Fallback: try by worker_profiles.id
+      response = await supabase
+          .from('worker_profiles')
+          .select('*, profiles(*), worker_skills(*, skills(*))')
+          .eq('id', userId)
           .maybeSingle();
       return response;
     } catch (e) {
@@ -45,12 +55,12 @@ class WorkerRepository {
   }) async {
     try {
       final params = <String, dynamic>{
-        'lat': lat,
-        'lng': lng,
-        'radius_km': radiusKm,
+        'p_lat': lat,
+        'p_lng': lng,
+        'p_radius_km': radiusKm,
       };
-      if (skillId != null) params['skill_id'] = skillId;
-      if (minRating != null) params['min_rating'] = minRating;
+      if (skillId != null) params['p_skill_id'] = skillId;
+      if (minRating != null) params['p_min_rating'] = minRating;
 
       final response = await supabase.rpc(
         'search_workers_nearby',
@@ -113,10 +123,10 @@ class WorkerRepository {
           '${DateTime.now().millisecondsSinceEpoch}.$fileExt';
       final filePath = '$userId/portfolio/$fileName';
 
-      await supabase.storage.from('portfolios').upload(filePath, file);
+      await supabase.storage.from('portfolio').upload(filePath, file);
 
       final publicUrl =
-          supabase.storage.from('portfolios').getPublicUrl(filePath);
+          supabase.storage.from('portfolio').getPublicUrl(filePath);
       return publicUrl;
     } catch (e) {
       throw Exception('Failed to upload portfolio image for $userId: $e');
@@ -136,7 +146,7 @@ class WorkerRepository {
       final storagePath =
           pathSegments.sublist(bucketIndex + 1).join('/');
 
-      await supabase.storage.from('portfolios').remove([storagePath]);
+      await supabase.storage.from('portfolio').remove([storagePath]);
     } catch (e) {
       throw Exception(
           'Failed to remove portfolio image for $userId: $e');

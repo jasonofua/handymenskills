@@ -1,6 +1,7 @@
 import 'package:flutter/material.dart';
 import 'package:flutter/services.dart';
 import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -8,6 +9,9 @@ import '../../../config/theme/app_text_styles.dart';
 import '../../../config/constants.dart';
 import '../../../controllers/job_controller.dart';
 import '../../../controllers/application_controller.dart';
+import '../../../controllers/chat_controller.dart';
+import '../../../data/repositories/skill_repository.dart';
+import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_avatar.dart';
 import '../../../widgets/common/app_bottom_sheet.dart';
 import '../../../widgets/common/app_cached_image.dart';
@@ -30,13 +34,38 @@ class JobDetailScreen extends StatefulWidget {
 class _JobDetailScreenState extends State<JobDetailScreen> {
   final _jobController = Get.find<JobController>();
   final _applicationController = Get.find<ApplicationController>();
+  final _skillNames = <String>[].obs;
+  final _hasApplied = false.obs;
 
   @override
   void initState() {
     super.initState();
-    WidgetsBinding.instance.addPostFrameCallback((_) {
-      _jobController.loadJobDetail(widget.jobId);
+    WidgetsBinding.instance.addPostFrameCallback((_) async {
+      await _jobController.loadJobDetail(widget.jobId);
+      _resolveSkillNames();
+      _checkIfApplied();
     });
+  }
+
+  Future<void> _checkIfApplied() async {
+    // Check from cached map first (instant)
+    if (_jobController.appliedJobIds[widget.jobId] == true) {
+      _hasApplied.value = true;
+      return;
+    }
+    // Fallback: async check from DB
+    final applied = await _applicationController.hasAppliedToJob(widget.jobId);
+    _hasApplied.value = applied;
+  }
+
+  Future<void> _resolveSkillNames() async {
+    final job = _jobController.currentJob;
+    final skillIds = List<String>.from(job['skill_ids'] ?? []);
+    if (skillIds.isEmpty) return;
+    try {
+      final names = await Get.find<SkillRepository>().getSkillNamesByIds(skillIds);
+      _skillNames.assignAll(names);
+    } catch (_) {}
   }
 
   void _showApplySheet() {
@@ -63,17 +92,17 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
               children: [
                 const SizedBox(height: AppDimensions.md),
                 AppTextField(
-                  label: 'Cover Letter',
-                  hint: 'Tell the client why you\'re the best fit...',
+                  label: 'Message to Client',
+                  hint: 'Briefly describe your experience and why you\'re a good fit for this job...',
                   controller: coverLetterController,
                   maxLines: 4,
                   maxLength: 500,
                   validator: (value) {
                     if (value == null || value.trim().isEmpty) {
-                      return 'Please enter a cover letter';
+                      return 'Please write a short message';
                     }
                     if (value.trim().length < 20) {
-                      return 'Cover letter must be at least 20 characters';
+                      return 'Message must be at least 20 characters';
                     }
                     return null;
                   },
@@ -125,6 +154,8 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                                 );
 
                                 if (success && context.mounted) {
+                                  _hasApplied.value = true;
+                                  _jobController.markJobAsApplied(widget.jobId);
                                   Navigator.pop(context);
                                 }
                               },
@@ -228,22 +259,46 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
                       BorderRadius.circular(AppDimensions.buttonRadius),
                 ),
                 child: IconButton(
-                  onPressed: () {
-                    // Chat navigation handled by existing routing
+                  onPressed: () async {
+                    final clientId = job['client_id'] as String?;
+                    if (clientId == null) return;
+                    final chatController = Get.find<ChatController>();
+                    final conversationId = await chatController
+                        .startConversation(clientId, jobId: widget.jobId);
+                    if (conversationId != null && context.mounted) {
+                      context.push(AppRoutes.chatConversation
+                          .replaceFirst(':id', conversationId));
+                    }
                   },
                   icon: const Icon(Icons.chat_bubble_outline,
                       color: AppColors.primary),
                 ),
               ),
               const SizedBox(width: AppDimensions.md),
-              // Apply Now button
+              // Apply Now / Applied button
               Expanded(
                 child: SizedBox(
                   height: AppDimensions.buttonHeight,
-                  child: ElevatedButton(
-                    onPressed: _showApplySheet,
-                    child: const Text('Apply Now'),
-                  ),
+                  child: Obx(() => ElevatedButton(
+                    onPressed: _hasApplied.value ? null : _showApplySheet,
+                    style: _hasApplied.value
+                        ? ElevatedButton.styleFrom(
+                            backgroundColor: AppColors.success.withValues(alpha: 0.15),
+                            disabledBackgroundColor: AppColors.success.withValues(alpha: 0.15),
+                            disabledForegroundColor: AppColors.success,
+                          )
+                        : null,
+                    child: Row(
+                      mainAxisAlignment: MainAxisAlignment.center,
+                      children: [
+                        if (_hasApplied.value) ...[
+                          const Icon(Icons.check_circle, size: 20),
+                          const SizedBox(width: 8),
+                        ],
+                        Text(_hasApplied.value ? 'Applied' : 'Apply Now'),
+                      ],
+                    ),
+                  )),
                 ),
               ),
             ],
@@ -256,15 +311,23 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
   Widget _buildJobContent(Map<String, dynamic> job) {
     final title = job['title'] ?? 'Untitled Job';
     final description = job['description'] ?? '';
-    final category = job['category']?['name'] ?? '';
+    final categoryData = job['categories'] as Map<String, dynamic>?;
+    final category = categoryData?['name'] ?? '';
     final budgetMin = (job['budget_min'] ?? 0.0).toDouble();
     final budgetMax = (job['budget_max'] ?? 0.0).toDouble();
     final urgency = job['urgency'] ?? 'normal';
-    final location = job['location_text'] ?? '';
+    final address = job['address'] ?? '';
+    final city = job['city'] ?? '';
+    final state = job['state'] ?? '';
+    final location = [address, city, state]
+        .where((s) => s.isNotEmpty)
+        .join(', ');
     final createdAt = DateTime.tryParse(job['created_at'] ?? '');
-    final images = List<String>.from(job['images'] ?? []);
-    final client = job['client'] as Map<String, dynamic>?;
-    final skills = List<String>.from(job['required_skills'] ?? []);
+    final rawImageUrls = job['image_urls'];
+    final images = rawImageUrls is List
+        ? List<String>.from(rawImageUrls)
+        : <String>[];
+    final client = job['profiles'] as Map<String, dynamic>?;
 
     return SingleChildScrollView(
       padding: const EdgeInsets.all(AppDimensions.screenPadding),
@@ -508,24 +571,31 @@ class _JobDetailScreenState extends State<JobDetailScreen> {
           const SizedBox(height: AppDimensions.lg),
 
           // -- Required Skills section --
-          if (skills.isNotEmpty) ...[
-            Text(
-              'REQUIRED SKILLS',
-              style: AppTextStyles.sectionHeader,
-            ),
-            const SizedBox(height: AppDimensions.sm),
-            Wrap(
-              spacing: AppDimensions.sm,
-              runSpacing: AppDimensions.sm,
-              children: skills
-                  .map((skill) => AppChip(
-                        label: skill,
-                        isSelected: true,
-                      ))
-                  .toList(),
-            ),
-            const SizedBox(height: AppDimensions.lg),
-          ],
+          Obx(() {
+            final skills = _skillNames;
+            if (skills.isEmpty) return const SizedBox.shrink();
+            return Column(
+              crossAxisAlignment: CrossAxisAlignment.start,
+              children: [
+                Text(
+                  'REQUIRED SKILLS',
+                  style: AppTextStyles.sectionHeader,
+                ),
+                const SizedBox(height: AppDimensions.sm),
+                Wrap(
+                  spacing: AppDimensions.sm,
+                  runSpacing: AppDimensions.sm,
+                  children: skills
+                      .map((skill) => AppChip(
+                            label: skill,
+                            isSelected: true,
+                          ))
+                      .toList(),
+                ),
+                const SizedBox(height: AppDimensions.lg),
+              ],
+            );
+          }),
 
           // Extra padding for bottom button
           const SizedBox(height: AppDimensions.xxl),

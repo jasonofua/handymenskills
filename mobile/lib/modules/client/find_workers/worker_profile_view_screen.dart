@@ -42,8 +42,6 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
     super.initState();
     WidgetsBinding.instance.addPostFrameCallback((_) {
       _loadProfile();
-      _checkSaved();
-      _reviewController.loadReviews(widget.workerId, refresh: true);
     });
   }
 
@@ -53,6 +51,10 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
       final data = await _workerRepo.getWorkerProfile(widget.workerId);
       if (data != null) {
         _profile.assignAll(data);
+        // Use the resolved auth user_id for reviews and favorites
+        final authUserId = data['user_id']?.toString() ?? widget.workerId;
+        _checkSaved();
+        _reviewController.loadReviews(authUserId, refresh: true);
       }
     } catch (e) {
       AppSnackbar.error('Failed to load worker profile');
@@ -459,7 +461,7 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
                           ),
                         ),
                       ],
-                      if (yearsExp != null) ...[
+                      if (yearsExp != null && yearsExp is num && yearsExp > 0) ...[
                         const SizedBox(width: 8),
                         Text(
                           '${yearsExp}y',
@@ -594,7 +596,7 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
         child: Row(
           children: [
             Expanded(
-              child: OutlinedButton.icon(
+              child: OutlinedButton(
                 onPressed: () async {
                   final chatController = Get.find<ChatController>();
                   final conversationId = await chatController.startConversation(widget.workerId);
@@ -602,8 +604,6 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
                     context.push(AppRoutes.chatConversation.replaceFirst(':id', conversationId));
                   }
                 },
-                icon: const Icon(Icons.chat_outlined, size: 18),
-                label: const Text('Contact'),
                 style: OutlinedButton.styleFrom(
                   minimumSize: const Size.fromHeight(AppDimensions.buttonHeight),
                   foregroundColor: AppColors.primary,
@@ -612,6 +612,7 @@ class _WorkerProfileViewScreenState extends State<WorkerProfileViewScreen> {
                     borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
                   ),
                 ),
+                child: const Text('Contact'),
               ),
             ),
             const SizedBox(width: AppDimensions.md),

@@ -7,6 +7,9 @@ class JobRepository {
   Future<List<Map<String, dynamic>>> getJobs({
     String? status,
     String? categoryId,
+    String? urgency,
+    double? budgetMin,
+    double? budgetMax,
     int limit = 20,
     int offset = 0,
   }) async {
@@ -20,6 +23,15 @@ class JobRepository {
       }
       if (categoryId != null) {
         query = query.eq('category_id', categoryId);
+      }
+      if (urgency != null) {
+        query = query.eq('urgency', urgency);
+      }
+      if (budgetMin != null) {
+        query = query.gte('budget_max', budgetMin);
+      }
+      if (budgetMax != null) {
+        query = query.lte('budget_min', budgetMax);
       }
 
       final response = await query
@@ -38,7 +50,7 @@ class JobRepository {
       final response = await supabase
           .from('jobs')
           .select(
-              '*, categories(*), profiles!jobs_client_id_fkey(*), applications(*, worker_profiles(*, profiles(*)))')
+              '*, categories(*), profiles!jobs_client_id_fkey(*), applications(*, worker_profiles(*, profiles(*))), bookings(*, worker:profiles!bookings_worker_id_fkey(*), reviews(*))')
           .eq('id', id)
           .single();
       return response;
@@ -91,15 +103,15 @@ class JobRepository {
   }) async {
     try {
       final params = <String, dynamic>{
-        'search_query': query,
+        'p_query_text': query,
       };
-      if (lat != null) params['lat'] = lat;
-      if (lng != null) params['lng'] = lng;
-      if (radiusKm != null) params['radius_km'] = radiusKm;
-      if (categoryId != null) params['category_id'] = categoryId;
-      if (urgency != null) params['urgency'] = urgency;
-      if (budgetMin != null) params['budget_min'] = budgetMin;
-      if (budgetMax != null) params['budget_max'] = budgetMax;
+      if (lat != null) params['p_lat'] = lat;
+      if (lng != null) params['p_lng'] = lng;
+      if (radiusKm != null) params['p_radius_km'] = radiusKm;
+      if (categoryId != null) params['p_category_id'] = categoryId;
+      if (urgency != null) params['p_urgency'] = urgency;
+      if (budgetMin != null) params['p_budget_min'] = budgetMin;
+      if (budgetMax != null) params['p_budget_max'] = budgetMax;
 
       final response = await supabase.rpc(
         'search_jobs',
@@ -116,7 +128,7 @@ class JobRepository {
     try {
       final response = await supabase
           .from('jobs')
-          .select('*, categories(*)')
+          .select('*, categories(*), bookings(*, reviews(overall_rating))')
           .eq('client_id', clientId)
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);

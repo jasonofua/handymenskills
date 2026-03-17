@@ -6,7 +6,7 @@ class FavoriteRepository {
     try {
       final userId = supabase.auth.currentUser!.id;
       await supabase.from('saved_workers').insert({
-        'user_id': userId,
+        'client_id': userId,
         'worker_id': workerId,
       });
     } catch (e) {
@@ -21,7 +21,7 @@ class FavoriteRepository {
       await supabase
           .from('saved_workers')
           .delete()
-          .eq('user_id', userId)
+          .eq('client_id', userId)
           .eq('worker_id', workerId);
     } catch (e) {
       throw Exception('Failed to unsave worker $workerId: $e');
@@ -35,7 +35,7 @@ class FavoriteRepository {
       final response = await supabase
           .from('saved_workers')
           .select('*, profiles!saved_workers_worker_id_fkey(*, worker_profiles(*))')
-          .eq('user_id', userId)
+          .eq('client_id', userId)
           .order('created_at', ascending: false);
       return List<Map<String, dynamic>>.from(response);
     } catch (e) {
@@ -50,7 +50,7 @@ class FavoriteRepository {
       final response = await supabase
           .from('saved_workers')
           .select()
-          .eq('user_id', userId)
+          .eq('client_id', userId)
           .eq('worker_id', workerId)
           .maybeSingle();
       return response != null;

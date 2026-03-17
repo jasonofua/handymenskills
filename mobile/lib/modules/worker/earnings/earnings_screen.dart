@@ -1,5 +1,8 @@
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
+import 'package:go_router/go_router.dart';
+import '../../../routes/app_routes.dart';
+import '../../../widgets/common/app_snackbar.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -34,6 +37,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
     await Future.wait([
       _paymentController.loadPaymentHistory(paymentType: 'job_payment'),
       _paymentController.loadPayouts(),
+      _paymentController.loadWorkerBalance(),
     ]);
   }
 
@@ -62,7 +66,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
             children: [
               _buildTotalEarningsHero(),
               const SizedBox(height: AppDimensions.md),
-              _buildPendingPayoutCard(),
+              _buildAvailableBalanceCard(),
               const SizedBox(height: AppDimensions.lg),
               _buildMonthlyTrends(),
               const SizedBox(height: AppDimensions.lg),
@@ -105,16 +109,7 @@ class _EarningsScreenState extends State<EarningsScreen> {
           children: [
             Row(
               children: [
-                Container(
-                  padding: const EdgeInsets.all(8),
-                  decoration: BoxDecoration(
-                    color: AppColors.white.withValues(alpha: 0.2),
-                    borderRadius:
-                        BorderRadius.circular(AppDimensions.radiusSm),
-                  ),
-                  child: const Icon(Icons.account_balance_wallet,
-                      color: AppColors.white, size: 22),
-                ),
+
                 const SizedBox(width: AppDimensions.sm),
                 Text(
                   'Total Earnings',
@@ -163,10 +158,9 @@ class _EarningsScreenState extends State<EarningsScreen> {
     });
   }
 
-  Widget _buildPendingPayoutCard() {
+  Widget _buildAvailableBalanceCard() {
     return Obx(() {
-      final profile = _workerProfileController.workerProfile;
-      final pendingBalance = (profile['pending_balance'] ?? 0.0).toDouble();
+      final availableBalance = _paymentController.workerAvailableBalance.value;
 
       return AppCard(
         child: Row(
@@ -174,56 +168,47 @@ class _EarningsScreenState extends State<EarningsScreen> {
             Container(
               padding: const EdgeInsets.all(10),
               decoration: BoxDecoration(
-                color: AppColors.warning.withValues(alpha: 0.1),
+                color: AppColors.success.withValues(alpha: 0.1),
                 shape: BoxShape.circle,
               ),
-              child: const Icon(Icons.hourglass_bottom,
-                  color: AppColors.warning, size: 22),
+              child: const Icon(Icons.account_balance_wallet_outlined,
+                  color: AppColors.success, size: 22),
             ),
             const SizedBox(width: AppDimensions.md),
             Expanded(
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text('Pending Payout', style: AppTextStyles.caption),
+                  Text('Available Balance', style: AppTextStyles.caption),
                   const SizedBox(height: 2),
                   Text(
-                    '${AppConstants.currencySymbol}${pendingBalance.toStringAsFixed(2)}',
+                    '${AppConstants.currencySymbol}${availableBalance.toStringAsFixed(2)}',
                     style: AppTextStyles.price,
                   ),
                 ],
               ),
             ),
-            SizedBox(
-              height: AppDimensions.buttonSmallHeight,
-              child: ElevatedButton(
-                onPressed: pendingBalance >= AppConstants.minWithdrawal
-                    ? () {
-                        // Payout request logic handled by payment flow
-                        Get.snackbar(
-                          'Payout Request',
-                          'Minimum withdrawal: ${AppConstants.currencySymbol}${AppConstants.minWithdrawal.toStringAsFixed(0)}',
-                          snackPosition: SnackPosition.BOTTOM,
-                        );
-                      }
-                    : null,
-                style: ElevatedButton.styleFrom(
-                  backgroundColor: AppColors.primary,
-                  foregroundColor: AppColors.white,
-                  padding:
-                      const EdgeInsets.symmetric(horizontal: AppDimensions.md),
-                  shape: RoundedRectangleBorder(
-                    borderRadius:
-                        BorderRadius.circular(AppDimensions.radiusSm),
-                  ),
-                  elevation: 0,
-                  textStyle: const TextStyle(
-                    fontSize: 13,
-                    fontWeight: FontWeight.w600,
-                  ),
+            ElevatedButton(
+              onPressed: availableBalance >= AppConstants.minWithdrawal
+                  ? () => _showWithdrawalBottomSheet(availableBalance)
+                  : null,
+              style: ElevatedButton.styleFrom(
+                backgroundColor: AppColors.primary,
+                foregroundColor: AppColors.white,
+                minimumSize: const Size(0, AppDimensions.buttonSmallHeight),
+                padding:
+                    const EdgeInsets.symmetric(horizontal: AppDimensions.md),
+                shape: RoundedRectangleBorder(
+                  borderRadius:
+                      BorderRadius.circular(AppDimensions.radiusSm),
                 ),
-                child: const Text('Request Payout'),
+                elevation: 0,
+                textStyle: const TextStyle(
+                  fontSize: 13,
+                  fontWeight: FontWeight.w600,
+                ),
               ),
+              child: const Text('Withdraw'),
             ),
           ],
         ),
@@ -428,6 +413,223 @@ class _EarningsScreenState extends State<EarningsScreen> {
           );
         }),
       ],
+    );
+  }
+
+  void _showWithdrawalBottomSheet(double availableBalance) {
+    final amountController = TextEditingController();
+    final workerProfile = _workerProfileController.workerProfile;
+    final bankName = workerProfile['bank_name']?.toString() ?? '';
+    final accountNumber = workerProfile['bank_account_number']?.toString() ?? '';
+    final accountName = workerProfile['bank_account_name']?.toString() ?? '';
+    final hasBankDetails = bankName.isNotEmpty && accountNumber.isNotEmpty;
+
+    showModalBottomSheet(
+      context: context,
+      isScrollControlled: true,
+      backgroundColor: AppColors.surface,
+      shape: const RoundedRectangleBorder(
+        borderRadius: BorderRadius.vertical(
+          top: Radius.circular(AppDimensions.cardRadius),
+        ),
+      ),
+      builder: (ctx) => Padding(
+        padding: EdgeInsets.only(
+          left: AppDimensions.screenPadding,
+          right: AppDimensions.screenPadding,
+          top: AppDimensions.lg,
+          bottom: MediaQuery.of(ctx).viewInsets.bottom + AppDimensions.lg,
+        ),
+        child: Column(
+          mainAxisSize: MainAxisSize.min,
+          crossAxisAlignment: CrossAxisAlignment.start,
+          children: [
+            // Header
+            Center(
+              child: Container(
+                width: 40,
+                height: 4,
+                decoration: BoxDecoration(
+                  color: AppColors.border,
+                  borderRadius: BorderRadius.circular(2),
+                ),
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+            Text('Withdraw', style: AppTextStyles.h3),
+            const SizedBox(height: AppDimensions.sm),
+
+            // Available balance
+            Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppDimensions.md),
+              decoration: BoxDecoration(
+                color: AppColors.success.withValues(alpha: 0.08),
+                borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+              ),
+              child: Row(
+                children: [
+                  Text('Available: ', style: AppTextStyles.bodySmall),
+                  Text(
+                    '${AppConstants.currencySymbol}${availableBalance.toStringAsFixed(0)}',
+                    style: AppTextStyles.labelLarge.copyWith(
+                      color: AppColors.success,
+                    ),
+                  ),
+                ],
+              ),
+            ),
+            const SizedBox(height: AppDimensions.md),
+
+            if (!hasBankDetails) ...[
+              // No bank details warning
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.warning.withValues(alpha: 0.08),
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  border: Border.all(color: AppColors.warning.withValues(alpha: 0.3)),
+                ),
+                child: Column(
+                  children: [
+                    Text(
+                      'Please add your bank details in your profile before withdrawing.',
+                      style: AppTextStyles.bodySmall,
+                      textAlign: TextAlign.center,
+                    ),
+                    const SizedBox(height: AppDimensions.md),
+                    SizedBox(
+                      width: double.infinity,
+                      child: ElevatedButton(
+                        onPressed: () {
+                          Navigator.pop(ctx);
+                          context.push(AppRoutes.workerEditProfile);
+                        },
+                        style: ElevatedButton.styleFrom(
+                          backgroundColor: AppColors.warning,
+                          foregroundColor: AppColors.white,
+                        ),
+                        child: const Text('Go to Profile'),
+                      ),
+                    ),
+                  ],
+                ),
+              ),
+            ] else ...[
+              // Amount input
+              Text('Amount', style: AppTextStyles.labelMedium),
+              const SizedBox(height: AppDimensions.xs),
+              TextField(
+                controller: amountController,
+                keyboardType: const TextInputType.numberWithOptions(decimal: true),
+                decoration: InputDecoration(
+                  prefixText: '${AppConstants.currencySymbol} ',
+                  hintText: 'Enter amount',
+                  border: OutlineInputBorder(
+                    borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  ),
+                  contentPadding: const EdgeInsets.symmetric(
+                    horizontal: AppDimensions.md,
+                    vertical: AppDimensions.sm,
+                  ),
+                ),
+              ),
+              const SizedBox(height: AppDimensions.xs),
+              Text(
+                'Minimum withdrawal: ${AppConstants.currencySymbol}${AppConstants.minWithdrawal.toStringAsFixed(0)}',
+                style: AppTextStyles.caption,
+              ),
+              const SizedBox(height: AppDimensions.md),
+
+              // Bank details display
+              Container(
+                width: double.infinity,
+                padding: const EdgeInsets.all(AppDimensions.md),
+                decoration: BoxDecoration(
+                  color: AppColors.background,
+                  borderRadius: BorderRadius.circular(AppDimensions.radiusMd),
+                  border: Border.all(color: AppColors.border),
+                ),
+                child: Column(
+                  crossAxisAlignment: CrossAxisAlignment.start,
+                  children: [
+                    Text('Bank Details', style: AppTextStyles.labelMedium),
+                    const SizedBox(height: AppDimensions.sm),
+                    _bankDetailRow('Bank', bankName),
+                    _bankDetailRow('Account', accountNumber),
+                    _bankDetailRow('Name', accountName),
+                  ],
+                ),
+              ),
+              const SizedBox(height: AppDimensions.lg),
+
+              // Submit button
+              Obx(() => SizedBox(
+                width: double.infinity,
+                height: AppDimensions.buttonHeight,
+                child: ElevatedButton(
+                  onPressed: _paymentController.isProcessing.value
+                      ? null
+                      : () async {
+                          final amount = double.tryParse(amountController.text.trim());
+                          if (amount == null || amount <= 0) {
+                            AppSnackbar.error('Please enter a valid amount');
+                            return;
+                          }
+                          final success = await _paymentController.requestWithdrawal(
+                            amount: amount,
+                            bankName: bankName,
+                            accountNumber: accountNumber,
+                            accountName: accountName,
+                          );
+                          if (ctx.mounted) {
+                            Navigator.pop(ctx);
+                          }
+                          if (success) {
+                            _loadData();
+                          }
+                        },
+                  style: ElevatedButton.styleFrom(
+                    backgroundColor: AppColors.primary,
+                    foregroundColor: AppColors.white,
+                    shape: RoundedRectangleBorder(
+                      borderRadius: BorderRadius.circular(AppDimensions.buttonRadius),
+                    ),
+                  ),
+                  child: _paymentController.isProcessing.value
+                      ? const SizedBox(
+                          width: 20,
+                          height: 20,
+                          child: CircularProgressIndicator(
+                            strokeWidth: 2,
+                            valueColor: AlwaysStoppedAnimation(AppColors.white),
+                          ),
+                        )
+                      : const Text('Withdraw'),
+                ),
+              )),
+            ],
+          ],
+        ),
+      ),
+    );
+  }
+
+  Widget _bankDetailRow(String label, String value) {
+    return Padding(
+      padding: const EdgeInsets.only(bottom: 4),
+      child: Row(
+        children: [
+          SizedBox(
+            width: 60,
+            child: Text(label, style: AppTextStyles.caption),
+          ),
+          Expanded(
+            child: Text(value, style: AppTextStyles.bodySmall),
+          ),
+        ],
+      ),
     );
   }
 }

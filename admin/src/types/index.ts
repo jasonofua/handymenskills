@@ -42,7 +42,7 @@ export type Job = {
   category_id: string | null;
   budget_min: number | null;
   budget_max: number | null;
-  job_status: "draft" | "open" | "assigned" | "in_progress" | "completed" | "cancelled" | "disputed";
+  status: "draft" | "open" | "assigned" | "in_progress" | "completed" | "cancelled" | "disputed";
   urgency: "low" | "normal" | "urgent" | "emergency";
   address: string | null;
   city: string | null;
@@ -101,7 +101,7 @@ export type Payout = {
   worker_id: string;
   booking_id: string | null;
   amount: number;
-  payout_status: "pending" | "processing" | "completed" | "failed";
+  status: "pending" | "processing" | "completed" | "failed";
   bank_name: string | null;
   account_number: string | null;
   account_name: string | null;

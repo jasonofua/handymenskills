@@ -14,17 +14,33 @@ class BookingController extends GetxController {
   final RxBool isProcessing = false.obs;
 
   RealtimeChannel? _bookingChannel;
+  RealtimeChannel? _bookingsListChannel;
+  String? _currentRole;
 
   Future<void> loadBookings({String? role, String? status}) async {
+    _currentRole = role ?? _currentRole;
     try {
       isLoading.value = true;
-      final data = await _bookingRepo.getMyBookings(role: role, status: status);
+      final data = await _bookingRepo.getMyBookings(role: _currentRole, status: status);
       bookings.assignAll(data);
+      _subscribeToBookingsList();
     } catch (e) {
       AppSnackbar.error('Failed to load bookings');
     } finally {
       isLoading.value = false;
     }
+  }
+
+  void _subscribeToBookingsList() {
+    if (_bookingsListChannel != null) return; // already subscribed
+    final userId = Supabase.instance.client.auth.currentUser?.id;
+    if (userId == null || _currentRole == null) return;
+
+    _bookingsListChannel = _realtimeService.subscribeToMyBookings(
+      userId,
+      _currentRole!,
+      () => loadBookings(role: _currentRole),
+    );
   }
 
   Future<void> loadBookingDetail(String bookingId) async {
@@ -87,6 +103,7 @@ class BookingController extends GetxController {
   @override
   void onClose() {
     _bookingChannel?.unsubscribe();
+    _bookingsListChannel?.unsubscribe();
     super.onClose();
   }
 }

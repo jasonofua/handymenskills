@@ -3,7 +3,7 @@ import 'enums.dart';
 class PayoutModel {
   final String id;
   final String workerId;
-  final String bookingId;
+  final String? bookingId;
   final double amount;
   final PayoutStatus status;
   final String bankName;
@@ -17,7 +17,7 @@ class PayoutModel {
   const PayoutModel({
     required this.id,
     required this.workerId,
-    required this.bookingId,
+    this.bookingId,
     required this.amount,
     this.status = PayoutStatus.pending,
     required this.bankName,
@@ -33,7 +33,7 @@ class PayoutModel {
     return PayoutModel(
       id: json['id'] as String,
       workerId: json['worker_id'] as String,
-      bookingId: json['booking_id'] as String,
+      bookingId: json['booking_id'] as String?,
       amount: (json['amount'] as num?)?.toDouble() ?? 0.0,
       status: PayoutStatus.fromString(json['status'] as String?),
       bankName: json['bank_name'] as String,

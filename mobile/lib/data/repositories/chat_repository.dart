@@ -3,23 +3,24 @@ import '../../config/supabase_config.dart';
 class ChatRepository {
   /// Gets an existing conversation with [otherUserId] or creates a new one.
   /// Optionally associates the conversation with a [jobId].
-  Future<Map<String, dynamic>> getOrCreateConversation(
+  Future<String> getOrCreateConversation(
     String otherUserId, {
     String? jobId,
   }) async {
     try {
       final params = <String, dynamic>{
-        'other_user_id': otherUserId,
+        'p_other_user_id': otherUserId,
       };
       if (jobId != null) {
-        params['job_id'] = jobId;
+        params['p_job_id'] = jobId;
       }
 
       final response = await supabase.rpc(
         'get_or_create_conversation',
         params: params,
       );
-      return Map<String, dynamic>.from(response as Map);
+      // RPC returns a UUID scalar
+      return response.toString();
     } catch (e) {
       throw Exception(
           'Failed to get or create conversation with $otherUserId: $e');
@@ -94,7 +95,7 @@ class ChatRepository {
   Future<void> markMessagesRead(String conversationId) async {
     try {
       await supabase.rpc('mark_messages_read', params: {
-        'conversation_id': conversationId,
+        'p_conversation_id': conversationId,
       });
     } catch (e) {
       throw Exception(

@@ -37,6 +37,12 @@ export default async function BookingDetailPage({ params }: Props) {
     .eq("booking_id", id)
     .order("created_at", { ascending: false });
 
+  const { data: reviews } = await supabase
+    .from("reviews")
+    .select("*, reviewer:profiles!reviews_reviewer_id_fkey(full_name), reviewee:profiles!reviews_reviewee_id_fkey(full_name)")
+    .eq("booking_id", id)
+    .order("created_at", { ascending: false });
+
   const timelineEvents = [
     { label: "Booking Created", date: booking.created_at, active: true },
     { label: "Started", date: booking.started_at, active: !!booking.started_at },
@@ -93,28 +99,40 @@ export default async function BookingDetailPage({ params }: Props) {
                 </>
               )}
 
-              {(booking.client_review || booking.worker_review) && (
+              {reviews && reviews.length > 0 && (
                 <>
                   <Separator className="my-4" />
+                  <p className="mb-3 text-sm font-medium">Reviews</p>
                   <div className="grid gap-4 sm:grid-cols-2">
-                    {booking.client_rating && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Client Review</p>
-                        <p className="font-medium">Rating: {booking.client_rating}/5</p>
-                        {booking.client_review && (
-                          <p className="mt-1 text-sm">{booking.client_review}</p>
-                        )}
-                      </div>
-                    )}
-                    {booking.worker_rating && (
-                      <div>
-                        <p className="text-sm text-muted-foreground">Worker Review</p>
-                        <p className="font-medium">Rating: {booking.worker_rating}/5</p>
-                        {booking.worker_review && (
-                          <p className="mt-1 text-sm">{booking.worker_review}</p>
-                        )}
-                      </div>
-                    )}
+                    {reviews.map((review: Record<string, unknown>) => {
+                      const reviewer = review.reviewer as { full_name: string } | null;
+                      const reviewee = review.reviewee as { full_name: string } | null;
+                      return (
+                        <div key={review.id as string} className="rounded-lg border p-3">
+                          <div className="flex items-center justify-between">
+                            <p className="text-sm font-medium">{reviewer?.full_name || "Unknown"}</p>
+                            <div className="flex items-center gap-1">
+                              <span className="text-sm font-bold text-amber-500">{"★".repeat(review.overall_rating as number)}</span>
+                              <span className="text-sm text-muted-foreground">{"★".repeat(5 - (review.overall_rating as number))}</span>
+                            </div>
+                          </div>
+                          <p className="mt-0.5 text-xs text-muted-foreground">
+                            Reviewed {reviewee?.full_name || "Unknown"}
+                          </p>
+                          {review.comment ? (
+                            <p className="mt-2 text-sm">{String(review.comment)}</p>
+                          ) : null}
+                          {(review.quality_rating || review.communication_rating || review.punctuality_rating || review.value_rating) ? (
+                            <div className="mt-2 flex flex-wrap gap-2 text-xs text-muted-foreground">
+                              {review.quality_rating ? <span>Quality: {String(review.quality_rating)}/5</span> : null}
+                              {review.communication_rating ? <span>Communication: {String(review.communication_rating)}/5</span> : null}
+                              {review.punctuality_rating ? <span>Punctuality: {String(review.punctuality_rating)}/5</span> : null}
+                              {review.value_rating ? <span>Value: {String(review.value_rating)}/5</span> : null}
+                            </div>
+                          ) : null}
+                        </div>
+                      );
+                    })}
                   </div>
                 </>
               )}

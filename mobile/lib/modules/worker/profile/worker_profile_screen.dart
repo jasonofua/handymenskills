@@ -43,7 +43,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
         centerTitle: true,
         actions: [
           IconButton(
-            onPressed: () => context.push(AppRoutes.settings),
+            onPressed: () async {
+              await context.push(AppRoutes.settings);
+              _workerProfileController.loadWorkerProfile();
+            },
             icon: const Icon(Icons.settings_outlined),
           ),
         ],
@@ -95,7 +98,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
     final name = _authController.userName;
     final avatarUrl = _authController.userAvatar;
     final headline = profile['headline'] as String? ?? '';
-    final avgRating = (profile['avg_rating'] ?? 0.0).toDouble();
+    final avgRating = (profile['average_rating'] ?? 0.0).toDouble();
     final totalReviews = profile['total_reviews'] ?? 0;
     final verificationStatus = profile['verification_status'] as String?;
     final isVerified = verificationStatus == 'verified';
@@ -201,8 +204,8 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
   }
 
   Widget _buildStatsRow(Map<String, dynamic> profile) {
-    final jobsCompleted = profile['jobs_completed'] ?? 0;
-    final avgRating = (profile['avg_rating'] ?? 0.0).toDouble();
+    final jobsCompleted = profile['total_jobs_completed'] ?? 0;
+    final avgRating = (profile['average_rating'] ?? 0.0).toDouble();
     final verificationStatus = profile['verification_status'] as String?;
     final isVerified = verificationStatus == 'verified';
 
@@ -295,7 +298,7 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
             runSpacing: AppDimensions.sm,
             children: skills.map((skill) {
               final skillName =
-                  skill['skill']?['name'] ?? skill['name'] ?? 'Skill';
+                  skill['skills']?['name'] ?? skill['name'] ?? 'Skill';
               final experienceYears = skill['experience_years'];
               final label = experienceYears != null
                   ? '$skillName (${experienceYears}yr)'
@@ -377,7 +380,10 @@ class _WorkerProfileScreenState extends State<WorkerProfileScreen> {
       width: double.infinity,
       height: AppDimensions.buttonHeight,
       child: ElevatedButton.icon(
-        onPressed: () => context.push(AppRoutes.workerEditProfile),
+        onPressed: () async {
+          await context.push(AppRoutes.workerEditProfile);
+          _workerProfileController.loadWorkerProfile();
+        },
         icon: const Icon(Icons.edit_outlined),
         label: const Text('Edit Profile'),
       ),

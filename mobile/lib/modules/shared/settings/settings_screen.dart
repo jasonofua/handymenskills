@@ -201,7 +201,10 @@ class SettingsScreen extends StatelessWidget {
             ],
             const SizedBox(height: AppDimensions.md),
             OutlinedButton(
-              onPressed: () => context.push(AppRoutes.editProfile),
+              onPressed: () async {
+                await context.push(AppRoutes.editProfile);
+                Get.find<AuthController>().refreshProfile();
+              },
               style: OutlinedButton.styleFrom(
                 foregroundColor: AppColors.primary,
                 side: const BorderSide(color: AppColors.primary),
@@ -259,9 +262,10 @@ class SettingsScreen extends StatelessWidget {
     BuildContext context,
     AuthController authController,
   ) {
+    final parentContext = context;
     showDialog(
       context: context,
-      builder: (context) => AlertDialog(
+      builder: (dialogContext) => AlertDialog(
         title: const Text('Sign Out'),
         content: const Text('Are you sure you want to sign out?'),
         shape: RoundedRectangleBorder(
@@ -269,14 +273,16 @@ class SettingsScreen extends StatelessWidget {
         ),
         actions: [
           TextButton(
-            onPressed: () => Navigator.pop(context),
+            onPressed: () => Navigator.pop(dialogContext),
             child: const Text('Cancel'),
           ),
           TextButton(
-            onPressed: () {
-              Navigator.pop(context);
-              authController.signOut();
-              context.go(AppRoutes.login);
+            onPressed: () async {
+              Navigator.pop(dialogContext);
+              await authController.signOut();
+              if (parentContext.mounted) {
+                parentContext.go(AppRoutes.login);
+              }
             },
             style: TextButton.styleFrom(
               foregroundColor: AppColors.error,

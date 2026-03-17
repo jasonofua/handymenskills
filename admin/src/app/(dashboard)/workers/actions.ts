@@ -48,6 +48,7 @@ export async function verifyWorker(workerProfileId: string, notes: string) {
       verification_notes: notes || null,
       verified_at: new Date().toISOString(),
       verified_by: adminId,
+      is_available: true,
     })
     .eq("id", workerProfileId);
 

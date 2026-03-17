@@ -143,6 +143,117 @@ class RealtimeService {
   }
 
   // ---------------------------------------------------------------------------
+  // Jobs – listen for changes on the user's jobs (applications, status)
+  // ---------------------------------------------------------------------------
+
+  /// Subscribes to changes on jobs owned by [clientId].
+  RealtimeChannel subscribeToMyJobs(
+    String clientId,
+    void Function(Map<String, dynamic> updatedJob) onUpdate,
+    void Function(Map<String, dynamic> newJob) onInsert,
+  ) {
+    final channel = supabase
+        .channel('my-jobs:$clientId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.update,
+          schema: 'public',
+          table: 'jobs',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'client_id',
+            value: clientId,
+          ),
+          callback: (payload) => onUpdate(payload.newRecord),
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  /// Subscribes to new applications on jobs owned by [clientId].
+  RealtimeChannel subscribeToApplications(
+    String clientId,
+    void Function(Map<String, dynamic> newApp) onNewApplication,
+  ) {
+    final channel = supabase
+        .channel('applications:$clientId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'applications',
+          callback: (payload) => onNewApplication(payload.newRecord),
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  /// Subscribes to new/updated bookings for a user (as client or worker).
+  RealtimeChannel subscribeToMyBookings(
+    String userId,
+    String role,
+    void Function() onBookingChange,
+  ) {
+    final column = role == 'worker' ? 'worker_id' : 'client_id';
+    final channel = supabase
+        .channel('bookings:$role:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'bookings',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: column,
+            value: userId,
+          ),
+          callback: (_) => onBookingChange(),
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  /// Subscribes to the open job feed (for workers).
+  RealtimeChannel subscribeToJobFeed(
+    void Function() onJobChange,
+  ) {
+    final channel = supabase
+        .channel('job-feed')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.all,
+          schema: 'public',
+          table: 'jobs',
+          callback: (_) => onJobChange(),
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  /// Subscribes to payment changes for wallet balance updates.
+  RealtimeChannel subscribeToPayments(
+    String userId,
+    void Function() onPaymentChange,
+  ) {
+    final channel = supabase
+        .channel('payments:$userId')
+        .onPostgresChanges(
+          event: PostgresChangeEvent.insert,
+          schema: 'public',
+          table: 'payments',
+          filter: PostgresChangeFilter(
+            type: PostgresChangeFilterType.eq,
+            column: 'user_id',
+            value: userId,
+          ),
+          callback: (_) => onPaymentChange(),
+        )
+        .subscribe();
+
+    return channel;
+  }
+
+  // ---------------------------------------------------------------------------
   // Broadcast – typing indicators
   // ---------------------------------------------------------------------------
 

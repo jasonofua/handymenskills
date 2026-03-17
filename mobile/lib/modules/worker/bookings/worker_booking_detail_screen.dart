@@ -69,7 +69,7 @@ class _WorkerBookingDetailScreenState extends State<WorkerBookingDetailScreen> {
 
   Widget _buildContent(Map<String, dynamic> booking) {
     final status = booking['status'] ?? 'pending';
-    final job = booking['job'] as Map<String, dynamic>?;
+    final job = booking['jobs'] as Map<String, dynamic>?;
     final client = booking['client'] as Map<String, dynamic>?;
     final agreedPrice = (booking['agreed_price'] ?? 0.0).toDouble();
     final scheduledDate = DateTime.tryParse(booking['scheduled_date'] ?? '');
@@ -113,6 +113,29 @@ class _WorkerBookingDetailScreenState extends State<WorkerBookingDetailScreen> {
                       const Text('Agreed Price', style: AppTextStyles.bodySmall),
                       Text(
                         '${AppConstants.currencySymbol}${agreedPrice.toStringAsFixed(0)}',
+                        style: AppTextStyles.bodyMedium,
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppDimensions.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      Text('Platform Fee (${(AppConstants.commissionRate * 100).toInt()}%)',
+                          style: AppTextStyles.bodySmall),
+                      Text(
+                        '-${AppConstants.currencySymbol}${(agreedPrice * AppConstants.commissionRate).toStringAsFixed(0)}',
+                        style: AppTextStyles.bodySmall.copyWith(color: AppColors.error),
+                      ),
+                    ],
+                  ),
+                  const SizedBox(height: AppDimensions.xs),
+                  Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
+                    children: [
+                      const Text('Your Payout', style: AppTextStyles.labelMedium),
+                      Text(
+                        '${AppConstants.currencySymbol}${(agreedPrice * (1 - AppConstants.commissionRate)).toStringAsFixed(0)}',
                         style: AppTextStyles.price,
                       ),
                     ],

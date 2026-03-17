@@ -11,6 +11,7 @@ import '../../../controllers/worker_profile_controller.dart';
 import '../../../controllers/notification_controller.dart';
 import '../../../controllers/booking_controller.dart';
 import '../../../controllers/job_controller.dart';
+import '../../../controllers/payment_controller.dart';
 import '../../../controllers/subscription_controller.dart';
 import '../../../routes/app_routes.dart';
 import '../../../widgets/common/app_avatar.dart';
@@ -33,6 +34,7 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   final _jobController = Get.find<JobController>();
   final _authController = Get.find<AuthController>();
   final _subscriptionController = Get.find<SubscriptionController>();
+  final _paymentController = Get.find<PaymentController>();
 
   @override
   void initState() {
@@ -45,8 +47,9 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   Future<void> _loadData() async {
     await Future.wait([
       _workerProfileController.loadWorkerProfile(),
-      _bookingController.loadBookings(role: 'worker', status: 'confirmed'),
+      _bookingController.loadBookings(role: 'worker'),
       _jobController.loadJobs(refresh: true),
+      _paymentController.loadWorkerBalance(),
     ]);
   }
 
@@ -229,8 +232,9 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
       final isActive = _subscriptionController.isActive;
       final daysRemaining = _subscriptionController.daysRemaining;
 
-      final planName = subscription?['plan']?['name'] ?? subscription?['plan_name'] ?? 'Free';
-      final price = (subscription?['plan']?['price'] ?? subscription?['price'] ?? 0).toDouble();
+      final plan = subscription?['subscription_plans'] as Map<String, dynamic>?;
+      final planName = plan?['name'] ?? 'Free';
+      final price = (plan?['price'] ?? 0).toDouble();
 
       return GestureDetector(
         onTap: () => context.push(AppRoutes.workerSubscription),
@@ -330,108 +334,140 @@ class _WorkerDashboardScreenState extends State<WorkerDashboardScreen> {
   }
 
   Widget _buildEarningsSummary() {
-    return Obx(() {
-      final profile = _workerProfileController.workerProfile;
-      final totalEarnings = (profile['total_earnings'] ?? 0.0).toDouble();
-      final pendingPayout = (profile['pending_payout'] ?? 0.0).toDouble();
+    return Column(
+      crossAxisAlignment: CrossAxisAlignment.start,
+      children: [
+        // -- Wallet card with available balance + withdraw --
+        Obx(() {
+          final availableBalance = _paymentController.workerAvailableBalance.value;
+          final profile = _workerProfileController.workerProfile;
+          final totalEarnings = (profile['total_earnings'] ?? 0.0).toDouble();
 
-      return Row(
-        children: [
-          Expanded(
-            child: AppCard(
+          return GestureDetector(
+            onTap: () => context.push(AppRoutes.workerEarnings),
+            child: Container(
+              width: double.infinity,
+              padding: const EdgeInsets.all(AppDimensions.cardPadding),
+              decoration: BoxDecoration(
+                gradient: const LinearGradient(
+                  begin: Alignment.topLeft,
+                  end: Alignment.bottomRight,
+                  colors: [AppColors.primary, AppColors.primaryDark],
+                ),
+                borderRadius: BorderRadius.circular(AppDimensions.cardRadius),
+                boxShadow: [
+                  BoxShadow(
+                    color: AppColors.primary.withValues(alpha: 0.25),
+                    blurRadius: 12,
+                    offset: const Offset(0, 4),
+                  ),
+                ],
+              ),
               child: Column(
                 crossAxisAlignment: CrossAxisAlignment.start,
                 children: [
-                  Text(
-                    'This Month',
-                    style: AppTextStyles.bodySmall,
-                  ),
-                  const SizedBox(height: AppDimensions.sm),
-                  Text(
-                    '${AppConstants.currencySymbol}${_formatAmount(totalEarnings)}',
-                    style: AppTextStyles.h3.copyWith(
-                      color: AppColors.textPrimary,
-                    ),
-                  ),
-                  const SizedBox(height: AppDimensions.xs),
                   Row(
+                    mainAxisAlignment: MainAxisAlignment.spaceBetween,
                     children: [
-                      Icon(
-                        Icons.arrow_upward,
-                        size: 12,
-                        color: AppColors.success,
+                      Text(
+                        'Available Balance',
+                        style: AppTextStyles.bodySmall.copyWith(
+                          color: AppColors.white.withValues(alpha: 0.8),
+                        ),
                       ),
-                      const SizedBox(width: 2),
-                      Flexible(
-                        child: Text(
-                          '12% vs last month',
-                          style: AppTextStyles.caption.copyWith(
-                            color: AppColors.success,
-                            fontSize: 11,
+                      Container(
+                        padding: const EdgeInsets.symmetric(
+                          horizontal: 8,
+                          vertical: 3,
+                        ),
+                        decoration: BoxDecoration(
+                          color: AppColors.white.withValues(alpha: 0.15),
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusFull,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        child: Text(
+                          'View Earnings',
+                          style: TextStyle(
+                            color: AppColors.white.withValues(alpha: 0.9),
+                            fontSize: 11,
+                            fontWeight: FontWeight.w500,
+                          ),
                         ),
                       ),
                     ],
                   ),
-                ],
-              ),
-            ),
-          ),
-          const SizedBox(width: AppDimensions.sm),
-          Expanded(
-            child: AppCard(
-              child: Column(
-                crossAxisAlignment: CrossAxisAlignment.start,
-                children: [
-                  Text(
-                    'Pending Payout',
-                    style: AppTextStyles.bodySmall,
-                  ),
                   const SizedBox(height: AppDimensions.sm),
                   Text(
-                    '${AppConstants.currencySymbol}${_formatAmount(pendingPayout)}',
-                    style: AppTextStyles.h3.copyWith(
-                      color: AppColors.textPrimary,
+                    '${AppConstants.currencySymbol}${_formatAmount(availableBalance)}',
+                    style: AppTextStyles.priceHero.copyWith(
+                      color: AppColors.white,
+                      fontSize: 28,
                     ),
                   ),
                   const SizedBox(height: AppDimensions.xs),
-                  Row(
-                    children: [
-                      Icon(
-                        Icons.schedule,
-                        size: 12,
-                        color: AppColors.textHint,
-                      ),
-                      const SizedBox(width: 2),
-                      Flexible(
-                        child: Text(
-                          'Next payout: Friday',
-                          style: AppTextStyles.caption.copyWith(
-                            fontSize: 11,
+                  Text(
+                    'Lifetime: ${AppConstants.currencySymbol}${_formatAmount(totalEarnings)}',
+                    style: TextStyle(
+                      color: AppColors.white.withValues(alpha: 0.7),
+                      fontSize: 12,
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+                  SizedBox(
+                    width: double.infinity,
+                    height: 40,
+                    child: ElevatedButton(
+                      onPressed: availableBalance >= AppConstants.minWithdrawal
+                          ? () => context.push(AppRoutes.workerEarnings)
+                          : null,
+                      style: ElevatedButton.styleFrom(
+                        backgroundColor: AppColors.white,
+                        foregroundColor: AppColors.primary,
+                        disabledBackgroundColor:
+                            AppColors.white.withValues(alpha: 0.3),
+                        disabledForegroundColor:
+                            AppColors.white.withValues(alpha: 0.6),
+                        elevation: 0,
+                        shape: RoundedRectangleBorder(
+                          borderRadius: BorderRadius.circular(
+                            AppDimensions.radiusSm,
                           ),
-                          maxLines: 1,
-                          overflow: TextOverflow.ellipsis,
+                        ),
+                        textStyle: const TextStyle(
+                          fontSize: 14,
+                          fontWeight: FontWeight.w600,
                         ),
                       ),
-                    ],
+                      child: Text(
+                        availableBalance >= AppConstants.minWithdrawal
+                            ? 'Withdraw'
+                            : 'Min ${AppConstants.currencySymbol}${AppConstants.minWithdrawal.toStringAsFixed(0)} to withdraw',
+                      ),
+                    ),
                   ),
                 ],
               ),
             ),
-          ),
-        ],
-      );
-    });
+          );
+        }),
+      ],
+    );
   }
 
   Widget _buildStatsRow() {
     return Obx(() {
       final profile = _workerProfileController.workerProfile;
-      final jobsCompleted = profile['jobs_completed'] ?? 0;
-      final avgRating = (profile['avg_rating'] ?? 0.0).toDouble();
-      final responseRate = (profile['response_rate'] ?? 0.0).toDouble();
+      final allBookings = _bookingController.bookings;
+      // Count completed jobs from bookings data (more accurate than profile stats)
+      final completedCount = allBookings.where((b) {
+        final s = b['status']?.toString() ?? '';
+        return s == 'completed' || s == 'client_confirmed';
+      }).length;
+      final profileJobsCompleted = profile['total_jobs_completed'] ?? 0;
+      final jobsCompleted = completedCount > 0 ? completedCount : profileJobsCompleted;
+      final avgRating = (profile['average_rating'] ?? 0.0).toDouble();
+      final responseRate = (profile['completion_rate'] ?? 0.0).toDouble();
 
       return Row(
         mainAxisAlignment: MainAxisAlignment.spaceEvenly,
@@ -632,11 +668,13 @@ class _BookingListCard extends StatelessWidget {
 
   @override
   Widget build(BuildContext context) {
-    final jobTitle = booking['job']?['title'] ?? 'Job';
-    final clientName = booking['client']?['full_name'] ?? 'Client';
+    final jobData = booking['jobs'] as Map<String, dynamic>?;
+    final clientData = booking['client'] as Map<String, dynamic>?;
+    final jobTitle = jobData?['title'] ?? 'Job';
+    final clientName = clientData?['full_name'] ?? 'Client';
     final status = booking['status'] ?? 'pending';
-    final price = (booking['agreed_price'] ?? 0.0).toDouble();
-    final category = booking['job']?['category']?['name'] as String?;
+    final price = (booking['agreed_price'] ?? 0.0).toDouble() * (1 - AppConstants.commissionRate);
+    final category = jobData?['categories']?['name'] as String?;
     final scheduledAt = booking['scheduled_at'] as String? ??
         booking['created_at'] as String?;
 

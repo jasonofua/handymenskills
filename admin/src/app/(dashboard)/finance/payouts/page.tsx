@@ -24,7 +24,7 @@ export default async function PayoutsPage({ searchParams }: Props) {
     .order("created_at", { ascending: false })
     .range(offset, offset + DEFAULT_PAGE_SIZE - 1);
 
-  if (status) query = query.eq("payout_status", status);
+  if (status) query = query.eq("status", status);
 
   const { data: payouts, count } = await query;
 

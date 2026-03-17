@@ -5,25 +5,28 @@ class BookingRepository {
   /// [action] is the action to perform (e.g., 'confirm', 'start', 'complete', 'cancel').
   /// [bookingId] is the target booking.
   /// [extraData] provides optional additional data for the action.
-  Future<Map<String, dynamic>> processBookingAction(
+  Future<String> processBookingAction(
     String action,
     String bookingId, {
     Map<String, dynamic>? extraData,
   }) async {
     try {
       final params = <String, dynamic>{
-        'action': action,
-        'booking_id': bookingId,
+        'p_action': action,
+        'p_booking_id': bookingId,
       };
       if (extraData != null) {
-        params['extra_data'] = extraData;
+        extraData.forEach((key, value) {
+          params['p_$key'] = value;
+        });
       }
 
       final response = await supabase.rpc(
         'process_booking_action',
         params: params,
       );
-      return Map<String, dynamic>.from(response as Map);
+      // RPC returns a UUID scalar
+      return response.toString();
     } catch (e) {
       throw Exception(
           'Failed to process booking action "$action" for $bookingId: $e');
@@ -41,7 +44,7 @@ class BookingRepository {
       final userId = supabase.auth.currentUser!.id;
 
       var query = supabase.from('bookings').select(
-          '*, jobs(*), profiles!bookings_client_id_fkey(*), profiles!bookings_worker_id_fkey(*)');
+          '*, jobs(*, categories(*)), client:profiles!bookings_client_id_fkey(*), worker:profiles!bookings_worker_id_fkey(*)');
 
       if (role == 'client') {
         query = query.eq('client_id', userId);
@@ -52,7 +55,11 @@ class BookingRepository {
       }
 
       if (status != null) {
-        query = query.eq('status', status);
+        if (status.contains(',')) {
+          query = query.inFilter('status', status.split(','));
+        } else {
+          query = query.eq('status', status);
+        }
       }
 
       final response =
@@ -69,7 +76,7 @@ class BookingRepository {
       final response = await supabase
           .from('bookings')
           .select(
-              '*, jobs(*, categories(*)), profiles!bookings_client_id_fkey(*), profiles!bookings_worker_id_fkey(*), reviews(*)')
+              '*, jobs(*, categories(*)), client:profiles!bookings_client_id_fkey(*), worker:profiles!bookings_worker_id_fkey(*), reviews(*)')
           .eq('id', id)
           .single();
       return response;

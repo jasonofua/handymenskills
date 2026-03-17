@@ -16,7 +16,7 @@ import { useState } from "react";
 type PayoutRow = {
   id: string;
   amount: number;
-  payout_status: string;
+  status: string;
   bank_name: string | null;
   account_number: string | null;
   account_name: string | null;
@@ -81,11 +81,11 @@ const columns: ColumnDef<PayoutRow, unknown>[] = [
     cell: ({ row }) => row.original.account_name || "N/A",
   },
   {
-    accessorKey: "payout_status",
+    accessorKey: "status",
     header: "Status",
     cell: ({ row }) => (
-      <Badge className={statusColors[row.original.payout_status] || ""}>
-        {row.original.payout_status}
+      <Badge className={statusColors[row.original.status] || ""}>
+        {row.original.status}
       </Badge>
     ),
   },
@@ -97,7 +97,7 @@ const columns: ColumnDef<PayoutRow, unknown>[] = [
   {
     id: "actions",
     cell: ({ row }) =>
-      row.original.payout_status === "pending" ? (
+      row.original.status === "pending" ? (
         <ProcessButton payoutId={row.original.id} />
       ) : null,
   },

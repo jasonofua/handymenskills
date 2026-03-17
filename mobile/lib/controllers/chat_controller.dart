@@ -53,19 +53,29 @@ class ChatController extends GetxController {
       isLoading.value = true;
       messages.clear();
 
+      // Load conversation list if not already loaded (needed for app bar name)
+      if (conversations.isEmpty ||
+          !conversations.any((c) => c['id'] == conversationId)) {
+        await loadConversations();
+      }
+
       final data = await _chatRepo.getMessages(conversationId);
       messages.assignAll(data.reversed.toList());
 
-      // Mark as read
-      await _chatRepo.markMessagesRead(conversationId);
+      // Mark as read — ignore errors so messages still display
+      try {
+        await _chatRepo.markMessagesRead(conversationId);
+      } catch (_) {}
 
       // Subscribe to new messages
       _messageChannel?.unsubscribe();
       _messageChannel = _realtimeService.subscribeToMessages(
         conversationId,
         (newMessage) {
-          messages.add(newMessage);
-          // Auto mark as read
+          // Avoid duplicates if we already added it locally
+          if (!messages.any((m) => m['id'] == newMessage['id'])) {
+            messages.add(newMessage);
+          }
           _chatRepo.markMessagesRead(conversationId);
         },
       );
@@ -91,12 +101,13 @@ class ChatController extends GetxController {
     if (_activeConversationId == null) return;
     try {
       isSending.value = true;
-      await _chatRepo.sendMessage(
+      final msg = await _chatRepo.sendMessage(
         _activeConversationId!,
         content,
         type: type,
         mediaUrl: mediaUrl,
       );
+      messages.add(msg);
     } catch (e) {
       AppSnackbar.error('Failed to send message');
     } finally {
@@ -150,8 +161,8 @@ class ChatController extends GetxController {
 
   Future<String?> startConversation(String otherUserId, {String? jobId}) async {
     try {
-      final conversation = await _chatRepo.getOrCreateConversation(otherUserId, jobId: jobId);
-      return conversation['id'] as String;
+      final conversationId = await _chatRepo.getOrCreateConversation(otherUserId, jobId: jobId);
+      return conversationId;
     } catch (e) {
       AppSnackbar.error('Failed to start conversation');
       return null;

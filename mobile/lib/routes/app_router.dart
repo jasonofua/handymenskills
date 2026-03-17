@@ -41,6 +41,7 @@ import '../modules/shared/report/report_screen.dart';
 import '../modules/shared/disputes/disputes_list_screen.dart';
 import '../modules/shared/disputes/create_dispute_screen.dart';
 import '../modules/shared/disputes/dispute_detail_screen.dart';
+import '../modules/shared/settings/edit_profile_screen.dart';
 import '../widgets/navigation/worker_bottom_nav.dart';
 import '../widgets/navigation/client_bottom_nav.dart';
 import 'app_routes.dart';
@@ -115,6 +116,7 @@ class AppRouter {
       GoRoute(path: '/chat/:id', builder: (_, state) => ChatScreen(conversationId: state.pathParameters['id']!)),
       GoRoute(path: AppRoutes.notifications, builder: (_, __) => const NotificationsScreen()),
       GoRoute(path: AppRoutes.settings, builder: (_, __) => const SettingsScreen()),
+      GoRoute(path: AppRoutes.editProfile, builder: (_, __) => const EditProfileScreen()),
       GoRoute(path: '/reviews/:userId', builder: (_, state) => ReviewsListScreen(userId: state.pathParameters['userId']!)),
       GoRoute(path: '/reviews/write/:bookingId', builder: (_, state) => WriteReviewScreen(bookingId: state.pathParameters['bookingId']!)),
       GoRoute(path: AppRoutes.favorites, builder: (_, __) => const FavoritesScreen()),

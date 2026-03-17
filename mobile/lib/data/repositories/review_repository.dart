@@ -2,9 +2,30 @@ import '../../config/supabase_config.dart';
 
 class ReviewRepository {
   /// Creates a new review.
+  /// Automatically sets reviewer_id from the current user.
+  /// If reviewee_id is empty, resolves it from the booking's worker_id.
   Future<void> createReview(Map<String, dynamic> data) async {
     try {
-      await supabase.from('reviews').insert(data);
+      final reviewData = Map<String, dynamic>.from(data);
+
+      // Set reviewer as the current user
+      reviewData['reviewer_id'] = supabase.auth.currentUser!.id;
+
+      // Resolve reviewee_id from booking if not provided
+      final revieweeId = reviewData['reviewee_id']?.toString() ?? '';
+      if (revieweeId.isEmpty && reviewData['booking_id'] != null) {
+        final booking = await supabase
+            .from('bookings')
+            .select('worker_id')
+            .eq('id', reviewData['booking_id'])
+            .single();
+        reviewData['reviewee_id'] = booking['worker_id'];
+      }
+
+      // Remove null optional ratings
+      reviewData.removeWhere((key, value) => value == null && key != 'comment');
+
+      await supabase.from('reviews').insert(reviewData);
     } catch (e) {
       throw Exception('Failed to create review: $e');
     }

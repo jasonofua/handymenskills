@@ -81,10 +81,17 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
   Widget _buildHeader() {
     return Obx(() => Row(
           children: [
-            AppAvatar(
-              imageUrl: _authController.userAvatar,
-              name: _authController.userName,
-              size: AppDimensions.avatarMd,
+            GestureDetector(
+              onTap: () async {
+                await context.push(AppRoutes.settings);
+                _loadData();
+                _paymentController.loadWalletBalance();
+              },
+              child: AppAvatar(
+                imageUrl: _authController.userAvatar,
+                name: _authController.userName,
+                size: AppDimensions.avatarMd,
+              ),
             ),
             const SizedBox(width: AppDimensions.md),
             Expanded(
@@ -109,8 +116,16 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
               onPressed: () => context.push(AppRoutes.notifications),
               icon: AppBadge(
                 count: _notificationController.unreadCount.value,
-                child: const Icon(Icons.notifications_outlined, size: 28),
+                child: const Icon(Icons.notifications_outlined, size: 26),
               ),
+            ),
+            IconButton(
+              onPressed: () async {
+                await context.push(AppRoutes.settings);
+                _loadData();
+                _paymentController.loadWalletBalance();
+              },
+              icon: const Icon(Icons.settings_outlined, size: 26),
             ),
           ],
         ));
@@ -177,7 +192,11 @@ class _ClientDashboardScreenState extends State<ClientDashboardScreen> {
           children: [
             Expanded(
               child: GestureDetector(
-                onTap: () => context.push(AppRoutes.clientPostJob),
+                onTap: () async {
+                  await context.push(AppRoutes.clientPostJob);
+                  _loadData();
+                  _paymentController.loadWalletBalance();
+                },
                 child: Container(
                   padding: const EdgeInsets.all(AppDimensions.lg),
                   decoration: BoxDecoration(

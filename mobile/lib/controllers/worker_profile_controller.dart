@@ -1,4 +1,5 @@
 import 'dart:io';
+import 'package:flutter/foundation.dart';
 import 'package:get/get.dart';
 import '../data/repositories/worker_repository.dart';
 import '../data/repositories/skill_repository.dart';
@@ -116,7 +117,10 @@ class WorkerProfileController extends GetxController {
   Future<void> uploadPortfolioImage(File file) async {
     try {
       isSaving.value = true;
+      debugPrint('[Portfolio] Uploading image: ${file.path}');
+      debugPrint('[Portfolio] File exists: ${file.existsSync()}, size: ${file.lengthSync()} bytes');
       final url = await _workerRepo.uploadPortfolioImage(_authController.userId, file);
+      debugPrint('[Portfolio] Upload success, URL: $url');
       final images = List<String>.from(workerProfile['portfolio_images'] ?? []);
       images.add(url);
       await _workerRepo.updateWorkerProfile(
@@ -127,7 +131,29 @@ class WorkerProfileController extends GetxController {
       workerProfile.refresh();
       AppSnackbar.success('Image uploaded');
     } catch (e) {
-      AppSnackbar.error('Failed to upload image');
+      debugPrint('[Portfolio] Upload FAILED: $e');
+      final msg = e.toString().replaceFirst('Exception: ', '');
+      AppSnackbar.error(msg);
+    } finally {
+      isSaving.value = false;
+    }
+  }
+
+  Future<void> removePortfolioImage(String imageUrl) async {
+    try {
+      isSaving.value = true;
+      await _workerRepo.removePortfolioImage(_authController.userId, imageUrl);
+      final images = List<String>.from(workerProfile['portfolio_images'] ?? []);
+      images.remove(imageUrl);
+      await _workerRepo.updateWorkerProfile(
+        _authController.userId,
+        {'portfolio_images': images},
+      );
+      workerProfile['portfolio_images'] = images;
+      workerProfile.refresh();
+      AppSnackbar.success('Image removed');
+    } catch (e) {
+      AppSnackbar.error('Failed to remove image');
     } finally {
       isSaving.value = false;
     }

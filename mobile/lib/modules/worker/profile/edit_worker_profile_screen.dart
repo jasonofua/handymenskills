@@ -1,6 +1,9 @@
+import 'dart:io';
+
 import 'package:flutter/material.dart';
 import 'package:get/get.dart';
 import 'package:go_router/go_router.dart';
+import 'package:image_picker/image_picker.dart';
 
 import '../../../config/theme/app_colors.dart';
 import '../../../config/theme/app_dimensions.dart';
@@ -10,6 +13,7 @@ import '../../../controllers/profile_controller.dart';
 import '../../../controllers/worker_profile_controller.dart';
 import '../../../data/constants/nigerian_locations.dart';
 import '../../../widgets/common/app_avatar.dart';
+import '../../../widgets/common/app_cached_image.dart';
 import '../../../widgets/common/app_card.dart';
 import '../../../widgets/common/app_chip.dart';
 import '../../../widgets/common/app_dropdown.dart';
@@ -74,6 +78,40 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
     _accountNumberController.dispose();
     _accountNameController.dispose();
     super.dispose();
+  }
+
+  Future<void> _pickAndUploadAvatar() async {
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    if (source == null) return;
+
+    final picked = await ImagePicker().pickImage(
+      source: source,
+      maxWidth: 800,
+      maxHeight: 800,
+      imageQuality: 85,
+    );
+    if (picked == null) return;
+
+    await _profileController.uploadAvatar(File(picked.path));
+    setState(() {}); // Refresh avatar display
   }
 
   Future<void> _saveProfile() async {
@@ -155,6 +193,12 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
               _buildSkillsManagementSection(),
               const SizedBox(height: AppDimensions.lg),
 
+              // -- Portfolio section --
+              _buildSectionHeader('PORTFOLIO'),
+              const SizedBox(height: AppDimensions.md),
+              _buildPortfolioSection(),
+              const SizedBox(height: AppDimensions.lg),
+
               // -- Availability section --
               _buildSectionHeader('AVAILABILITY'),
               const SizedBox(height: AppDimensions.md),
@@ -206,9 +250,7 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
             bottom: 0,
             right: 0,
             child: GestureDetector(
-              onTap: () {
-                // Avatar upload handled via profile controller
-              },
+              onTap: () => _pickAndUploadAvatar(),
               child: Container(
                 padding: const EdgeInsets.all(8),
                 decoration: BoxDecoration(
@@ -358,7 +400,7 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
                 runSpacing: AppDimensions.sm,
                 children: skills.map((skill) {
                   final skillName =
-                      skill['skill']?['name'] ?? skill['name'] ?? 'Skill';
+                      skill['skills']?['name'] ?? skill['name'] ?? 'Skill';
                   return AppChip(
                     label: skillName,
                     isSelected: true,
@@ -501,7 +543,7 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
                         .workerSkills
                         .any((ws) =>
                             ws['skill_id'] == skill['id'] ||
-                            ws['skill']?['id'] == skill['id']);
+                            ws['skills']?['id'] == skill['id']);
 
                     return ListTile(
                       title: Text(skill['name'] ?? ''),
@@ -537,7 +579,7 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
   }
 
   void _showRemoveSkillDialog(Map<String, dynamic> skill) {
-    final skillName = skill['skill']?['name'] ?? skill['name'] ?? 'Skill';
+    final skillName = skill['skills']?['name'] ?? skill['name'] ?? 'Skill';
     showDialog(
       context: context,
       builder: (ctx) => AlertDialog(
@@ -553,6 +595,175 @@ class _EditWorkerProfileScreenState extends State<EditWorkerProfileScreen> {
               Navigator.pop(ctx);
               _workerProfileController
                   .removeSkill(skill['id'] as String);
+            },
+            style: TextButton.styleFrom(foregroundColor: AppColors.error),
+            child: const Text('Remove'),
+          ),
+        ],
+      ),
+    );
+  }
+
+  Widget _buildPortfolioSection() {
+    return AppCard(
+      child: Column(
+        crossAxisAlignment: CrossAxisAlignment.start,
+        children: [
+          Text(
+            'Showcase your past work to attract more clients.',
+            style: AppTextStyles.bodySmall,
+          ),
+          const SizedBox(height: AppDimensions.md),
+          Obx(() {
+            final images = List<String>.from(
+              _workerProfileController.workerProfile['portfolio_images'] ?? [],
+            );
+
+            return Column(
+              children: [
+                if (images.isNotEmpty) ...[
+                  SizedBox(
+                    height: 120,
+                    child: ListView.separated(
+                      scrollDirection: Axis.horizontal,
+                      itemCount: images.length,
+                      separatorBuilder: (_, __) =>
+                          const SizedBox(width: AppDimensions.sm),
+                      itemBuilder: (context, index) {
+                        return Stack(
+                          children: [
+                            ClipRRect(
+                              borderRadius: BorderRadius.circular(
+                                  AppDimensions.radiusMd),
+                              child: AppCachedImage(
+                                imageUrl: images[index],
+                                width: 120,
+                                height: 120,
+                                fit: BoxFit.cover,
+                              ),
+                            ),
+                            Positioned(
+                              top: 4,
+                              right: 4,
+                              child: GestureDetector(
+                                onTap: () =>
+                                    _confirmRemoveImage(images[index]),
+                                child: Container(
+                                  padding: const EdgeInsets.all(4),
+                                  decoration: const BoxDecoration(
+                                    color: AppColors.error,
+                                    shape: BoxShape.circle,
+                                  ),
+                                  child: const Icon(
+                                    Icons.close,
+                                    color: AppColors.white,
+                                    size: 14,
+                                  ),
+                                ),
+                              ),
+                            ),
+                          ],
+                        );
+                      },
+                    ),
+                  ),
+                  const SizedBox(height: AppDimensions.md),
+                ],
+                GestureDetector(
+                  onTap: _pickAndUploadPortfolio,
+                  child: Container(
+                    padding: const EdgeInsets.symmetric(
+                        horizontal: 14, vertical: 8),
+                    decoration: BoxDecoration(
+                      color: AppColors.primary.withValues(alpha: 0.08),
+                      borderRadius:
+                          BorderRadius.circular(AppDimensions.radiusFull),
+                      border: Border.all(
+                        color: AppColors.primary.withValues(alpha: 0.3),
+                      ),
+                    ),
+                    child: Row(
+                      mainAxisSize: MainAxisSize.min,
+                      children: [
+                        Icon(Icons.add, size: 18, color: AppColors.primary),
+                        const SizedBox(width: 4),
+                        Text(
+                          'Add Image',
+                          style: TextStyle(
+                            fontSize: 13,
+                            fontWeight: FontWeight.w600,
+                            color: AppColors.primary,
+                          ),
+                        ),
+                      ],
+                    ),
+                  ),
+                ),
+              ],
+            );
+          }),
+        ],
+      ),
+    );
+  }
+
+  Future<void> _pickAndUploadPortfolio() async {
+    debugPrint('[Portfolio] Add Image tapped');
+    final source = await showModalBottomSheet<ImageSource>(
+      context: context,
+      builder: (ctx) => SafeArea(
+        child: Wrap(
+          children: [
+            ListTile(
+              leading: const Icon(Icons.camera_alt),
+              title: const Text('Camera'),
+              onTap: () => Navigator.pop(ctx, ImageSource.camera),
+            ),
+            ListTile(
+              leading: const Icon(Icons.photo_library),
+              title: const Text('Gallery'),
+              onTap: () => Navigator.pop(ctx, ImageSource.gallery),
+            ),
+          ],
+        ),
+      ),
+    );
+    debugPrint('[Portfolio] Source selected: $source');
+    if (source == null) return;
+
+    try {
+      final picked = await ImagePicker().pickImage(
+        source: source,
+        maxWidth: 1200,
+        maxHeight: 1200,
+        imageQuality: 85,
+      );
+      debugPrint('[Portfolio] Picked: ${picked?.path}');
+      if (picked == null) return;
+
+      final file = File(picked.path);
+      debugPrint('[Portfolio] File exists: ${file.existsSync()}');
+      await _workerProfileController.uploadPortfolioImage(file);
+    } catch (e) {
+      debugPrint('[Portfolio] Picker/upload error: $e');
+    }
+  }
+
+  void _confirmRemoveImage(String imageUrl) {
+    showDialog(
+      context: context,
+      builder: (ctx) => AlertDialog(
+        title: const Text('Remove Image'),
+        content: const Text('Remove this image from your portfolio?'),
+        actions: [
+          TextButton(
+            onPressed: () => Navigator.pop(ctx),
+            child: const Text('Cancel'),
+          ),
+          TextButton(
+            onPressed: () {
+              Navigator.pop(ctx);
+              _workerProfileController.removePortfolioImage(imageUrl);
             },
             style: TextButton.styleFrom(foregroundColor: AppColors.error),
             child: const Text('Remove'),
